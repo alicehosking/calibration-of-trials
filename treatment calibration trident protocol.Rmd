@@ -24,6 +24,8 @@ knitr::opts_chunk$set(message = F, warning=F, echo=F)
 
 ## Introduction
 
+test change
+
 This document contains sample R code and results for trial calibration based on strata. The intention is to calibrate TRIDENT to LATCH. The TRIDENT trial result showed that there appeared to be no difference in the primary outcome until approximately 18 months, from which point the cumulative incidence function for the primary outcome appears to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months (t1) and end of follow up (approx 6 years, t1+t2=t3).
 
 In this document, we use real LATCH data and made-up hazard ratios, to demonstrate the method.
