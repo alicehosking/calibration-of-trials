@@ -91,10 +91,9 @@ The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presume
 
 The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh was recruited 17 people with ICH for TRIDENT. This does not affect the validity of the process of calibration.
 
-
 ## Analysis example
 
-We now show the method for calibration, using LATCH data and mock hazard ratios from TRIDENT.
+We now show the method for calibration. We use LATCH data. We create four strata for this example, and mock hazard ratios for TRIDENT for these strata.
 
 ### Data tidying
 
@@ -146,10 +145,12 @@ for(i in 1:length(strata)){
 ### Parametric survival model for LATCH {.tabset}
 
 We model the event rate (stroke recurrence) in LATCH for each stratum. We use a parametric model. 
-First inspect the Kaplan Meier curve. This looks approximately exponential.
-To model the event rate, we use the flexsurv package in R. There are various choices for the model's distribution (exponential, gamma, Weibull etc). An exponential model makes calculations much simpler. We compare the hazard and survival plots for each distribution to a non-parametric model, and the AIC for each distribution.
 
-The exponential model allows much simpler calculations than others. The AICs are all similar (although gamma is the lowest), and up to the end point of Trident, the exponential model is sufficiently close to use. 
+First inspect the Kaplan Meier curve. This looks approximately exponential. 
+
+We model the event rate with a parametric survival model to select the most appropriate distribution, using the flexsurv package in R. There are various choices for the model distribution (exponential, gamma, Weibull etc). We compare the hazard and survival plots for each distribution to a non-parametric model, and the AIC for each distribution.
+
+The exponential model allows much simpler calculations than others. The AICs are all similar (although gamma is the lowest), and up to the end point of TRIDENT, the exponential model is sufficient. 
 
 
 #### Kaplan Meier curve
@@ -263,125 +264,27 @@ kable(parametric_aic)
 ```
 
 
-### Event rates with selected model{.tabset}
-
-We then use the selected model to calculate the events per year with CIs for each model at t1 and between t1 and end of follow up.
-
-The model summary outputs survival probability, so to get event probability we take 1-survival probability.
-
-```{r model event rates with chosen model}
-
-#initialise data frames
-survival_outputs <- vector(mode = "list", length = length(strata))
-survival_t1<- as.data.frame(matrix(nrow=length(strata), ncol=3))
-survival_t2<- as.data.frame(matrix(nrow=length(strata), ncol=3))
-z_lambda<- c()
-se_z<- c(length=length(strata))
-
-# apply parametric model to each stratum of LATCH.
-for(i in 1:length(strata)){
-
-    #use flexsurv with exponential model
-    z <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = strata[[i]], dist ="exp") 
-    #lambda is the log of the rate. The standard error of lambda is z$res[4]
-    z_lambda <- c(z_lambda, z$coefficients)
-    se_z[i]<- z$res[4]
-    
-    #the following is to check outputs are sensible.
-    #check the survival for each stratum is sensible
-    z_survival <- standsurv(z, type="survival", ci=TRUE)
-    survival_outputs[[i]]<- z_survival
-    #survival at t1 and t2
-    t1_cutoff <- max(z_survival$time[z_survival$time<548])
-    
-    survival_t1[i,] <- c(z_survival$at1[z_survival$time==t1_cutoff],z_survival$at1_lci[z_survival$time==t1_cutoff],
-                         z_survival$at1_uci[z_survival$time==t1_cutoff])
-    
-    t3_cutoff <- max(z_survival$time[z_survival$time<6*365.25])
-  
-    survival_t2[i,] <- c(z_survival$at1[z_survival$time==t3_cutoff],z_survival$at1_lci[z_survival$time==t3_cutoff],
-                         z_survival$at1_uci[z_survival$time==t3_cutoff])
-
-    
-}
-
-
-#survival with confidence intervals at time t1 (1 year) and t2 (4.5 years).
-#switch to event rate 
-events_at_t1<- (1-survival_t1)
-#t2 should be difference between t2 and t1
-events_at_t2 <- (survival_t1-survival_t2)
-colnames(events_at_t1)<- c("Event probability", "U CI", "L CI")
-colnames(events_at_t2)<- c("Events probability", "U CI", "L CI")
-
-```
-
-#### Model coefficient lambda (=log event rate per day for exponential model)
-
-```{r lambda output}
-as.data.frame(cbind(seq(1,length(strata),1),z_lambda))%>%
-  kable(col.names=c("stratum", "coefficient"))%>%
-  kable_styling()
-```
-
-#### Survival table t1
-
-```{r event prob tab1 1}
-kable(round(survival_t1,3), caption="survival probability at t1 for each stratum") %>% kable_styling()
-```
-#### Survival table t2
-
-```{r event prob tab1 2}
-
-kable(round(survival_t2,3), caption="survival probability from t1 to t1+t2 for each stratum")%>% kable_styling()
-```
-
-#### Event probability table t1
-
-```{r event prob tab2 1}
-kable(round(events_at_t1,3), caption="event probability at t1 for each stratum") %>% kable_styling()
-```
-
-#### Event probability table t2
-
-```{r event prob tab2 2}
-kable(round(events_at_t2,3), caption="events probability from t1 to t1+t2 for each stratum")%>% kable_styling()
-```
-
-#### Event probability per year table t1
-
-```{r event prob tab3 1}
-kable(round(events_at_t1/1.5,3), caption="event probability per year at t1 for each stratum") %>% kable_styling()
-```
-
-#### Event probability per year table t2
-
-```{r event prob tab3 2}
-
-kable(round(events_at_t2/4.5,3), caption="events proabbility per year from t1 to t1+t2 for each stratum")%>% kable_styling()
-```
-
-
-
 ### Simple event rates {.tabset}
 
-Assuming exponential event rate across t1 and t2, we can calculate the event rate, the standard error, and simulate a normally distributed sample. We plot the sample and show the event rates for each stratum in a table.
+Assuming exponential event rate across t1 and t2, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
 
 #### Plot of sample
 
 ```{r simple event rates}
+## Set number of samples with nrep for use throughout.
+nrep<-10000
+
 #event rate at t1 and t2
-log_rate_est <- log((strata_n_events_t3)/ strata_fu_t3)
+rate_est <- strata_n_events_t3/ strata_fu_t3*365.35*100
+log_rate_est <- log(strata_n_events_t3/ strata_fu_t3)
 # Calculate SE of the log-rate for untreated
 log_rate_se <- 1 / sqrt(strata_n_events_t3)
 ## obtain and plot samples from rate in untreated
-## Set number of samples with nrep for use throughout.
-nrep<-1000
-untreated_rates<- as.data.frame(cbind(log_rate_est, log_rate_se))
+untreated_rates<- as.data.frame(cbind(rate_est,log_rate_est, log_rate_se))
 setDT(untreated_rates)
-
 log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
 
+rownames(untreated_rates)<- c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 #plot to confirm normality
 ggplot(data=log_lambda_u)+
   geom_histogram(aes(x=V1), fill="#FCCDE5")+
@@ -395,7 +298,8 @@ ggplot(data=log_lambda_u)+
 
 ```{r table of rates}
 #print table of rates
-cbind(c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over"), round(untreated_rates,3))%>%
+colnames(untreated_rates) <- c("Events per 100 person years", "log(rate/day)", "log(standard error)")
+(round(untreated_rates,2))%>%
   kable()%>%
   kable_styling()
 
