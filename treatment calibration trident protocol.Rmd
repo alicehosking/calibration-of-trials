@@ -1,6 +1,6 @@
 ---
-title: "Mock-up of trial calibration"
-author: "Alice Hosking"
+title: "Statistical analysis plan for calibration of the Trident trial to a population-based cohort in Scotland."
+author: "Dr Alice Hosking, Prof David McAllister"
 date: "`r Sys.Date()`"
 output: html_document
 ---
@@ -24,22 +24,74 @@ knitr::opts_chunk$set(message = F, warning=F, echo=F)
 
 ## Introduction
 
-test change
+### Purpose and scope of this document
 
-This document contains sample R code and results for trial calibration based on strata. The intention is to calibrate TRIDENT to LATCH. The TRIDENT trial result showed that there appeared to be no difference in the primary outcome until approximately 18 months, from which point the cumulative incidence function for the primary outcome appears to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months (t1) and end of follow up (approx 6 years, t1+t2=t3).
+This statistical analysis plan details the analyses planned for calibration of the TRIDENT trial to a population-based inception cohort, including a worked-through example with mock values of hazard ratios.
 
-In this document, we use real LATCH data and made-up hazard ratios, to demonstrate the method.
+### Study overview
+
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.1 Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.2 A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg. The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.3 \\
+However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativity of the general population (i.e., lack of external validity).4–6 In particular, women, vulnerable older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.7–9 Furthermore, the trial was conducted in countries with different demography to the UK.\\
+In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.10 Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using real-world cohort studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
+
+
+### Objectives
+
+The aim of this study is to calibrate the effect of a low-dose triple pill antihypertensive medication in people with ICH from the TRIDENT trial to a population-based cohort in Lothian, Scotland.
+
+
+## Study design, population and outcomes
+
+### Study design
+
+This study will use stratified data from the TRIDENT trial (the trial population) and data from the LATCH study (the target population) a prospective, population-based inception cohort study of people with ICH in NHS Lothian. 
+
+The TRIDENT trial result showed that there appeared to be no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appears to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months (t1) and end of follow up (approx 6 years, t1+t2=t3).
 
 The method will be as follows:
 
 * Inspect the distribution of ages in TRIDENT and LATCH to choose sensible stratification ages.
 * Split TRIDENT into strata of age and sex (eg <65 years female, <65 years male, over 65 years female,  over 65 years male)
 * Obtain hazard ratios for TRIDENT for each stratum at 18 months and 4.5 years. 
-* Split LATCH into the same age- and sex-based strata.For each strata, fit a parametric survival model to obtain rates and confidence intervals of the primary outcome at t1 and t2.
+* Split LATCH into the same age- and sex-based strata.For each strata, fit a parametric survival model to obtain rates and confidence intervals of the primary outcome at t1 and t3.
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
 * The relative risk for each stratum is then (risk untreated/risk treated). We combind relative risks and use simulation to obtain confidence intervals.
 
-## Data tidying
+### Populations
+
+#### Trial population
+
+The trial population is the 1500 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation was 54 days.
+TRIDENT Inclusion Criteria
+* Adults (≥18 years) with a history of primary ICH that was confirmed by imaging.
+* Clinically stable, as judged by investigator.
+* An average of two resting systolic blood pressure (SBP) levels measured 5 minutes apart in the range 130-160 mmHg recorded in a seated position. Patients with higher SBP could still be included if it was considered by the site investigator that their management would be consistent with local standards of clinical practice.
+* Geographical proximity to the recruiting hospital and/or follow-up medical clinic site to allow ready access for in-person assessments during follow-up.
+* No clear contraindication or indication to any of the individual components of the Investigational Medical Product (IMP).
+* Provision of written informed consent
+TRIDENT Exclusion Criteria
+* Taking an angiotensin converting enzyme inhibitor (ACE-I) that could not be switched to any of the following alternatives: an angiotensin receptor blocker (ARB) (e.g. telmisartan 20 or 40 mg), a calcium channel blocker (CCB) (e.g. amlodipine 2.5 or 5 mg), or a thiazide (TZ)-like diuretic (e.g. indapamide 1.25 mg); an equivalent class (ARB, CCB or TZ); or a beta-blocker (BB).
+* Contraindication to any component of the IMP in the context of currently prescribed BP lowering treatment.
+* Unable to complete the study procedures and/or follow-up.
+
+#### Target population
+
+The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Ethical approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.11 In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,12 and records at the Office of the Procurator Fiscal.  \\
+The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the pill, if it were recommended in clinical treatment guidelines.\\
+*	In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
+*	If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure. 
+*	The pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
+
+#### Overlap between trial and target populations.
+
+The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh was recruited 17 people with ICH for TRIDENT. This does not affect the validity of the process of calibration.
+
+
+## Analysis example
+
+We now show the method for calibration, using LATCH data and mock hazard ratios from TRIDENT.
+
+### Data tidying
 
 First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). (Code not shown.)
 
@@ -85,11 +137,11 @@ for(i in 1:length(strata)){
 
 ```
 
-## Simple event rates {.tabset}
+### Simple event rates {.tabset}
 
 Assuming exponential event rate across t1 and t2, we can calculate the event rate, the standard error, and simulate a normally distributed sample. We plot the sample and show the event rates for each stratum in a table.
 
-### Plot of sample
+#### Plot of sample
 
 ```{r simple event rates}
 #event rate at t1 and t2
@@ -113,7 +165,7 @@ ggplot(data=log_lambda_u)+
   xlab("")
 ```
 
-### Log of event rates for each stratum
+#### Log of event rates for each stratum
 
 ```{r table of rates}
 #print table of rates
@@ -124,11 +176,11 @@ cbind(c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 
 ```
 
 
-## Hazard ratios for each stratum {.tabset}
+### Hazard ratios for each stratum {.tabset}
 
 For this mock-up we estimate hazard ratios for each time period. For the real analysis, the strata may be different; this is for demonstration only. We assume HR are independent; and make a guess at the HR for young men. We then split into two time periods: up to 18 months, where the HR are approximately 1; and beyond 18 months. We simulate 1000 samples assuming a log normal distribution, for t1 and t2.
 
-### Table of mock hazard ratios
+#### Table of mock hazard ratios
 
 ```{r mock hazard ratios - whole trial}
 # overall HR. These come from the subgroup analysis of the trial
@@ -167,7 +219,7 @@ kable(hrs_t1)%>% kable_styling()
 kable(hrs_t2)%>% kable_styling()
 ```
 
-### Histogram of simulated log hazard ratios for strata 1-4, T1
+#### Histogram of simulated log hazard ratios for strata 1-4, T1
 
 ```{r simulate n hrs, warnings=F}
 #obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
@@ -190,7 +242,7 @@ ggplot(data=log_hrs_t1_per_strata)+
   xlab("Log of hazard ratio")
 ```
 
-### Histogram of simulated hazard ratios for strata 1-4, T1 
+#### Histogram of simulated hazard ratios for strata 1-4, T1 
 
 ```{r hist hr t1 exponentiated}
 ggplot(data=log_hrs_t1_per_strata)+
@@ -201,7 +253,7 @@ ggplot(data=log_hrs_t1_per_strata)+
   xlab("Hazard ratio")
 ```
 
-### Histogram of simulated log hazard ratios for strata 1-4, T2
+#### Histogram of simulated log hazard ratios for strata 1-4, T2
 
 ```{r t2 hr hists}
 #repeat for t2 hazard ratios
@@ -219,7 +271,7 @@ ggplot(data=log_hrs_t2_per_strata)+
   xlab("Log of hazard ratio")
 ```
 
-### Histogram of simulated hazard ratios for strata 1-4, T2 
+#### Histogram of simulated hazard ratios for strata 1-4, T2 
 
 ```{r t2 hr exponentiated}
 ggplot(data=log_hrs_t2_per_strata)+
@@ -230,7 +282,7 @@ ggplot(data=log_hrs_t2_per_strata)+
   xlab("Hazard ratio")
 ```
 
-## Calibrated rates and CIs for each stratum {.tabset}
+### Calibrated rates and CIs for each stratum {.tabset}
 
 For each age/sex stratum and for each time period, we combine the rate in the untreated and the hazard ratio to obtain a risk ratio.
 
@@ -289,7 +341,7 @@ rr_means_t2<- risk_ratio_for_plot_t2%>%
 
 ```
 
-### Simulated risk ratios for strata 1-4, T1 
+#### Simulated risk ratios for strata 1-4, T1 
 
 ```{r risk plot t1}
 ggplot(data=risk_ratio_for_plot_t1)+
@@ -301,7 +353,7 @@ ggplot(data=risk_ratio_for_plot_t1)+
   xlab("Risk ratio")
 ```
 
-### Simulated risk ratios for strata 1-4, T1+T2
+#### Simulated risk ratios for strata 1-4, T1+T2
 
 ```{r risk plot t2}
 ggplot(data=risk_ratio_for_plot_t2)+
@@ -314,7 +366,7 @@ ggplot(data=risk_ratio_for_plot_t2)+
 
 ```
 
-## Pooling risk ratios {.tabset}
+### Pooling risk ratios {.tabset}
 
 The final step is to pool the risk ratios for each stratum.
 
@@ -344,7 +396,7 @@ cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),3)
 est_t2<- round(mean(rr_tot_t2),3)
 ```
 
-### Pooled risk ratio at T1
+#### Pooled risk ratio at T1
 
 ```{r t1 pooled results,results="asis"}
 cat(paste(" \n \nThe estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
@@ -359,7 +411,7 @@ ggplot(data=as.data.frame(rr_tot_t1))+
 
 ```
 
-### Pooled risk ratio at T1 + T2
+#### Pooled risk ratio at T1 + T2
 
 ```{r t2 pooled results,results="asis"}
 
