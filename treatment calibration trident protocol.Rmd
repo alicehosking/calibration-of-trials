@@ -30,8 +30,10 @@ This statistical analysis plan details the analyses planned for calibration of t
 
 ### Study overview
 
-Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.1 Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.2 A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg. The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.3 \\
-However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativity of the general population (i.e., lack of external validity).4–6 In particular, women, vulnerable older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.7–9 Furthermore, the trial was conducted in countries with different demography to the UK.\\
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.1 Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.2 A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg. The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.3 
+
+However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativity of the general population (i.e., lack of external validity).4–6 In particular, women, vulnerable older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.7–9 Furthermore, the trial was conducted in countries with different demography to the UK.
+
 In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.10 Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using real-world cohort studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
 
 
@@ -62,6 +64,7 @@ The method will be as follows:
 #### Trial population
 
 The trial population is the 1500 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation was 54 days.
+
 TRIDENT Inclusion Criteria
 * Adults (≥18 years) with a history of primary ICH that was confirmed by imaging.
 * Clinically stable, as judged by investigator.
@@ -76,8 +79,10 @@ TRIDENT Exclusion Criteria
 
 #### Target population
 
-The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Ethical approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.11 In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,12 and records at the Office of the Procurator Fiscal.  \\
-The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the pill, if it were recommended in clinical treatment guidelines.\\
+The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Ethical approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.11 In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,12 and records at the Office of the Procurator Fiscal.  
+
+The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the pill, if it were recommended in clinical treatment guidelines.
+
 *	In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
 *	If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure. 
 *	The pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
@@ -136,6 +141,227 @@ for(i in 1:length(strata)){
 }
 
 ```
+
+
+### Parametric survival model for LATCH {.tabset}
+
+We model the event rate (stroke recurrence) in LATCH for each stratum. We use a parametric model. 
+First inspect the Kaplan Meier curve. This looks approximately exponential.
+To model the event rate, we use the flexsurv package in R. There are various choices for the model's distribution (exponential, gamma, Weibull etc). An exponential model makes calculations much simpler. We compare the hazard and survival plots for each distribution to a non-parametric model, and the AIC for each distribution.
+
+The exponential model allows much simpler calculations than others. The AICs are all similar (although gamma is the lowest), and up to the end point of Trident, the exponential model is sufficiently close to use. 
+
+
+#### Kaplan Meier curve
+
+
+```{r KM for whole population, warnings=FALSE, message=FALSE}
+
+s1<- survfit(Surv(surv_time_all_stroke, censor_status_all_str_all_time) ~ 1, data = latch_for_trident)
+km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none")
+km_plot
+```
+
+
+
+```{r choose parametric model for event rate}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(latch_for_trident$surv_time_all_stroke, latch_for_trident$censor_status_all_str_all_time)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(surv_time_all_stroke, censor_status_all_str_all_time) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(surv_time_all_stroke, censor_status_all_str_all_time) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$surv_time_all_stroke)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+
+#### Plot of hazards of various distributions
+```{r hazard plot}
+
+ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
+  geom_line() +
+  xlab("Days") + ylab("Hazard") + 
+  scale_colour_manual(name = "", 
+                      values = c("black", rainbow(n_dists))) +
+  scale_linetype_manual(name = "",
+                        values = c(1, rep_len(2:6, n_dists)))
+
+```
+
+#### Plot of survivals of various distributions
+
+```{r survival plots}
+#alternative plot
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)
+```
+
+#### Compare AIC
+
+```{r aic}
+
+parametric_haz <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+fit_aic<- c()
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  fit_aic<- c(fit_aic, fit$AIC)
+}
+
+#add in gompertz separately
+fit_gompertz <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$time_to_all_stroke)))) 
+fit_aic<-  c(fit_aic, fit_gompertz$AIC)
+#join all together
+parametric_aic<- as.data.frame(cbind(dists_long, fit_aic))
+kable(parametric_aic)
+```
+
+
+### Event rates with selected model{.tabset}
+
+We then use the selected model to calculate the events per year with CIs for each model at t1 and between t1 and end of follow up.
+
+The model summary outputs survival probability, so to get event probability we take 1-survival probability.
+
+```{r model event rates with chosen model}
+
+#initialise data frames
+survival_outputs <- vector(mode = "list", length = length(strata))
+survival_t1<- as.data.frame(matrix(nrow=length(strata), ncol=3))
+survival_t2<- as.data.frame(matrix(nrow=length(strata), ncol=3))
+z_lambda<- c()
+se_z<- c(length=length(strata))
+
+# apply parametric model to each stratum of LATCH.
+for(i in 1:length(strata)){
+
+    #use flexsurv with exponential model
+    z <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = strata[[i]], dist ="exp") 
+    #lambda is the log of the rate. The standard error of lambda is z$res[4]
+    z_lambda <- c(z_lambda, z$coefficients)
+    se_z[i]<- z$res[4]
+    
+    #the following is to check outputs are sensible.
+    #check the survival for each stratum is sensible
+    z_survival <- standsurv(z, type="survival", ci=TRUE)
+    survival_outputs[[i]]<- z_survival
+    #survival at t1 and t2
+    t1_cutoff <- max(z_survival$time[z_survival$time<548])
+    
+    survival_t1[i,] <- c(z_survival$at1[z_survival$time==t1_cutoff],z_survival$at1_lci[z_survival$time==t1_cutoff],
+                         z_survival$at1_uci[z_survival$time==t1_cutoff])
+    
+    t3_cutoff <- max(z_survival$time[z_survival$time<6*365.25])
+  
+    survival_t2[i,] <- c(z_survival$at1[z_survival$time==t3_cutoff],z_survival$at1_lci[z_survival$time==t3_cutoff],
+                         z_survival$at1_uci[z_survival$time==t3_cutoff])
+
+    
+}
+
+
+#survival with confidence intervals at time t1 (1 year) and t2 (4.5 years).
+#switch to event rate 
+events_at_t1<- (1-survival_t1)
+#t2 should be difference between t2 and t1
+events_at_t2 <- (survival_t1-survival_t2)
+colnames(events_at_t1)<- c("Event probability", "U CI", "L CI")
+colnames(events_at_t2)<- c("Events probability", "U CI", "L CI")
+
+```
+
+#### Model coefficient lambda (=log event rate per day for exponential model)
+
+```{r lambda output}
+as.data.frame(cbind(seq(1,length(strata),1),z_lambda))%>%
+  kable(col.names=c("stratum", "coefficient"))%>%
+  kable_styling()
+```
+
+#### Survival table t1
+
+```{r event prob tab1 1}
+kable(round(survival_t1,3), caption="survival probability at t1 for each stratum") %>% kable_styling()
+```
+#### Survival table t2
+
+```{r event prob tab1 2}
+
+kable(round(survival_t2,3), caption="survival probability from t1 to t1+t2 for each stratum")%>% kable_styling()
+```
+
+#### Event probability table t1
+
+```{r event prob tab2 1}
+kable(round(events_at_t1,3), caption="event probability at t1 for each stratum") %>% kable_styling()
+```
+
+#### Event probability table t2
+
+```{r event prob tab2 2}
+kable(round(events_at_t2,3), caption="events probability from t1 to t1+t2 for each stratum")%>% kable_styling()
+```
+
+#### Event probability per year table t1
+
+```{r event prob tab3 1}
+kable(round(events_at_t1/1.5,3), caption="event probability per year at t1 for each stratum") %>% kable_styling()
+```
+
+#### Event probability per year table t2
+
+```{r event prob tab3 2}
+
+kable(round(events_at_t2/4.5,3), caption="events proabbility per year from t1 to t1+t2 for each stratum")%>% kable_styling()
+```
+
+
 
 ### Simple event rates {.tabset}
 
