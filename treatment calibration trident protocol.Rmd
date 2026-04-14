@@ -236,7 +236,6 @@ ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
 
 ```{r survival plots}
 #alternative plot
-
 parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
 ggplot() + geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
   geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)
@@ -280,11 +279,14 @@ log_rate_est <- log(strata_n_events_t3/ strata_fu_t3)
 # Calculate SE of the log-rate for untreated
 log_rate_se <- 1 / sqrt(strata_n_events_t3)
 ## obtain and plot samples from rate in untreated
-untreated_rates<- as.data.frame(cbind(rate_est,log_rate_est, log_rate_se))
+untreated_rates<- as.data.frame(cbind(strata_n, rate_est,log_rate_est, log_rate_se))
 setDT(untreated_rates)
 log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
 
-rownames(untreated_rates)<- c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+#rename I column to the strata names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
+
 #plot to confirm normality
 ggplot(data=log_lambda_u)+
   geom_histogram(aes(x=V1), fill="#FCCDE5")+
@@ -298,9 +300,11 @@ ggplot(data=log_lambda_u)+
 
 ```{r table of rates}
 #print table of rates
-colnames(untreated_rates) <- c("Events per 100 person years", "log(rate/day)", "log(standard error)")
+untreated_rates<- as.data.frame(untreated_rates)
+rownames(untreated_rates)<- strata
+colnames(untreated_rates) <- c( "N in stratum", "Events per 100 person years", "log(rate/day)", "log(standard error)")
 (round(untreated_rates,2))%>%
-  kable()%>%
+  kable(row.names = T)%>%
   kable_styling()
 
 ```
@@ -308,9 +312,8 @@ colnames(untreated_rates) <- c("Events per 100 person years", "log(rate/day)", "
 
 ### Hazard ratios for each stratum {.tabset}
 
-For this mock-up we estimate hazard ratios for each time period. For the real analysis, the strata may be different; this is for demonstration only. We assume HR are independent; and make a guess at the HR for young men. We then split into two time periods: up to 18 months, where the HR are approximately 1; and beyond 18 months. We simulate 1000 samples assuming a log normal distribution, for t1 and t2.
+For this mock-up we estimate hazard ratios for each time period (based roughly on published subgroup analysis). For the real analysis, the strata may be different; this is for demonstration only. We assume HR are independent; and make a guess at the HR for young men. We then split into two time periods: up to 18 months, where the HR are approximately 1; and beyond 18 months. We simulate 10000 samples assuming a log normal distribution, for t1 and t2.
 
-#### Table of mock hazard ratios
 
 ```{r mock hazard ratios - whole trial}
 # overall HR. These come from the subgroup analysis of the trial
@@ -327,26 +330,34 @@ old_young_interaction<- over_60_hr/under_60_hr
 #need to make assumption on HR for young men
 
 hrs_t2<- as.data.frame(rbind(
-hr_young_men<- c(0.78, 0.46, 1.35),
+hr_young_men<- c(0.68, 0.46, 1.35),
 hr_young_women <- hr_young_men*f_m_interaction,
 hr_old_men<- hr_young_men*old_young_interaction,
 hr_old_women <- hr_young_men*f_m_interaction*old_young_interaction
 ))
 # we need to split into two time strata; the first 18 months and beyond 18 months. For the first 18 months, the HR between treatment and control overall is approximately 1; beyond this the HR widens. for the first 18 months, recentre HR and CI to 1ish. For beyond 18 months, use existing HR
 hrs_t1<- as.data.frame(rbind(
-hr_young_men_t1<- hr_young_men+0.22,
-hr_young_women_t1 <- hr_young_women+0.52,
-hr_old_men_t1 <- hr_old_men+0.48,
-hr_old_women_t1 <- hr_old_women + 0.62
+hr_young_men_t1<- hr_young_men+0.32,
+hr_young_women_t1 <- hr_young_women+0.62,
+hr_old_men_t1 <- hr_old_men+0.58,
+hr_old_women_t1 <- hr_old_women + 0.72
 ))
 
 colnames(hrs_t1) <- c("HR", "l_ci", "u_ci")
 rownames(hrs_t1) <- c(" Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 colnames(hrs_t2) <- c("HR", "l_ci", "u_ci")
 rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+```
 
-kable(hrs_t1)%>% kable_styling()
-kable(hrs_t2)%>% kable_styling()
+#### Hazard ratio for period t1
+```{r hr for t1}
+kable(round(hrs_t1,2))%>% kable_styling()
+```
+
+#### Hazard ratio for period t2
+
+```{r hr for t2}
+kable(round(hrs_t2,2))%>% kable_styling()
 ```
 
 #### Histogram of simulated log hazard ratios for strata 1-4, T1
@@ -361,8 +372,11 @@ hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log
 #simulate log hr for nrep samples.
 #create simulated hr for all strata
 log_hrs_t1_per_strata <- hrs_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-#format as matrix
-log_hrs_t1_per_strata_mat <- as.data.frame(matrix(log_hrs_t1_per_strata$V1, ncol=4))
+
+#rename I column to the strata names
+log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=c(1,2,3,4), labels=strata)
+
+
 #plot to confirm normality
 ggplot(data=log_hrs_t1_per_strata)+
   geom_histogram(aes(x=V1), fill="#FCCDE5")+
@@ -387,11 +401,12 @@ ggplot(data=log_hrs_t1_per_strata)+
 
 ```{r t2 hr hists}
 #repeat for t2 hazard ratios
-nrep<-1000
 #create simulated hr for all strata
 log_hrs_t2_per_strata <- hrs_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-#format as matrix
-log_hrs_t2_per_strata_mat <- as.data.frame(matrix(log_hrs_t2_per_strata$V1, ncol=4))
+
+#rename I column to the strata names
+log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=c(1,2,3,4), labels=strata)
+
 #plot to confirm normality
 ggplot(data=log_hrs_t2_per_strata)+
   geom_histogram(aes(x=V1), fill="#80B1D3")+
@@ -418,17 +433,18 @@ For each age/sex stratum and for each time period, we combine the rate in the un
 
 The basic formula for an exponential distribution are as follows:
 
-lambda_u - rate in untreated
-t1=length in days of first time period
-t2=length in days of second time period
+$$\lambda_u=\text{rate in untreated}$$
+$$t_1=\text{length in days of first time period}$$
+$$t_2=\text{length in days of second time period}$$
 
-Multiply untreated rates by  hazard ratios to get treated event rates:-
-lamba_t1 = lambda_u * hr1
-lamba_t2 = lambda_u * hr2
+Multiply untreated rates by hazard ratios to get treated event rates:-
+$$\lambda_{t1} = \lambda_u \times HR_1$$
+$$\lambda_{t2} = \lambda_u \times HR_2$$
 
 We then transform these to risks for each stratum
-Risk_untreated = 1 - exp(-lambda_u*(t1+t2))
-Risk_treated = 1 - exp(-(lambda_t1 * t1 + lambda_t2*t2))
+$$\text{Risk_untreated} = 1 - exp^{-\lambda_u(t_1+t_2)}$$
+$$\text{Risk_treated} = 1 - exp^ {-\lambda_{t1} t_1 + lambda_{t2}*t_2))$$
+
 
 We have already simulated 1000 samples for each hazard ratio. We simulate 1000 samples for event rates, which gives 1000 risk ratios.
 
@@ -508,7 +524,7 @@ rr_t2<-matrix(risk_ratio_t2, ncol=4)
 
 #matrix of ns in latch, one column per stratum
 strata_n_df<- as.data.frame(t(strata_n))
-ns <- as.matrix(strata_n_df %>% slice(rep(1, each = 1000)))
+ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep)))
 #create a vector of totals
 n_tot<- rowSums(ns)
 
