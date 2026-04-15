@@ -578,13 +578,23 @@ $$ARR = 1/(\lambda_u - \lambda_u \times RR)$$
 $$ \text{NNT} = 1/\text{ARR} $$
 
 ```{r absolute risks}
+#without simulation
 event_rate<- sum(strata_n_events_t3)/sum(strata_fu_t3)*365.25
-
-arr <- event_rate- event_rate*est_t2
-
+arr <- event_rate- event_rate*rr_tot_t2
 nnt <- 1/arr
+cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
+cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
 
-cat(paste(" \n \n The number needed to treat is ",round(nnt,2), sep=""))
+#with simulation
+event_rate_sim<- lambda_u_sim*365.25
+arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
+nnt_sim<- 1/arr_sim
+cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
+cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
+
+cat(paste(" \n \n The number needed to treat using exact event rates is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
+cat(paste(" \n \n Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
+
 
 ```
 
