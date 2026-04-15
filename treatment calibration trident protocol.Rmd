@@ -4,8 +4,9 @@ author: "Dr Alice Hosking, Prof David McAllister, ...."
 date: "`r Sys.Date()`"
 output: 
   html_document:
-            toc: true
-            number_sections: true
+          toc: true
+          number_sections: true
+          theme: united
 bibliography: calibration.bib 
 csl: american-medical-association-10th-edition.csl
 
@@ -162,7 +163,7 @@ The exponential model allows much simpler calculations other models. The AICs ar
 #### Kaplan Meier curve
 
 
-```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=4,fig.height=4}
+```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=6,fig.height=4}
 
 s1<- survfit(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident)
 km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), risk.table =FALSE,surv.plot.height = 2,
@@ -227,10 +228,12 @@ n_dists <- length(dists)
 #### Plot of survivals of various distributions
 
 ```{r survival plots,fig.width=8,fig.height=4}
-#alternative plot
+
 parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
-ggplot() + geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
-  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
+  xlab("Days") +ylab("Survival") 
 ```
 
 #### Plot of hazards of various distributions
@@ -249,7 +252,7 @@ ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
 
 
 
-#### Compare AIC
+#### Comparison of AIC
 
 ```{r aic}
 
@@ -267,7 +270,8 @@ fit_gompertz <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, dat
 fit_aic<-  c(fit_aic, fit_gompertz$AIC)
 #join all together
 parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
-kable(parametric_aic)
+kable(parametric_aic, col.names=c("Model", "AIC"))%>%
+  kable_styling(full_width = F)
 ```
 
 
@@ -275,9 +279,9 @@ kable(parametric_aic)
 
 Assuming exponential event rate across t1 and t2, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
 
-#### Plot of sample
 
-```{r simple event rates,fig.width=6,fig.height=4}
+
+```{r simple event rates}
 ## Set number of samples with nrep for use throughout.
 nrep<-10000
 
@@ -294,17 +298,9 @@ log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), 
 #rename I column to the strata names
 strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
-
-#plot to confirm normality
-ggplot(data=log_lambda_u)+
-  geom_histogram(aes(x=V1), fill="#FCCDE5")+
-  theme_bw()+
-  facet_wrap(vars(I))+
-  labs(title="Simulated log rates for strata 1-4")+ 
-  xlab("")
 ```
 
-#### Log of event rates for each stratum
+#### Table of event rates for each stratum
 
 ```{r table of rates}
 #print table of rates
@@ -313,8 +309,20 @@ rownames(untreated_rates)<- strata
 colnames(untreated_rates) <- c( "N in stratum", "Events per 100 person years", "log(rate/day)", "log(standard error)")
 (round(untreated_rates,2))%>%
   kable(row.names = T)%>%
-  kable_styling()
+  kable_styling(full_width = F)
 
+```
+
+
+#### Plot of log event rates for each stratum
+```{r plot of event rates log,fig.width=6,fig.height=4}
+#plot to confirm normality
+ggplot(data=log_lambda_u)+
+  geom_histogram(aes(x=V1), fill="#FCCDE5")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated log rates for strata 1-4")+ 
+  xlab("")
 ```
 
 
@@ -359,13 +367,13 @@ rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and 
 
 #### Hazard ratio for period t1
 ```{r hr for t1}
-kable(round(hrs_t1,2))%>% kable_styling()
+kable(round(hrs_t1,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
 ```
 
 #### Hazard ratio for period t2
 
 ```{r hr for t2}
-kable(round(hrs_t2,2))%>% kable_styling()
+kable(round(hrs_t2,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
 ```
 
 #### Histogram of simulated log hazard ratios for strata 1-4, T1
@@ -560,10 +568,12 @@ est_t2<- round(mean(rr_tot_t2),3)
 
 #### Pooled risk ratio at T1 + T2
 
-```{r t2 pooled results numerical}
+```{r t2 pooled results numerical, comment=NA}
 
-cat(paste(" \n \n The estimated calibrated risk ratio is ", est_t2, " (95% confidence interval ", cis_t2[1], "-", cis_t2[2], ").", sep=""))
+cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence interval ", cis_t2[1], "-", cis_t2[2], ").", sep=""))
+
 ```
+
 \n
 \n
 ```{r t2 pooled results,results="asis",fig.width=3,fig.height=2}
@@ -585,7 +595,7 @@ $$ARR = 1/(\lambda_u - \lambda_u \times RR)$$
 
 $$ \text{NNT} = 1/\text{ARR} $$
 
-```{r absolute risks}
+```{r absolute risks, comment=NA}
 #without simulation
 event_rate<- sum(strata_n_events_t3)/sum(strata_fu_t3)*365.25
 arr <- event_rate- event_rate*rr_tot_t2
@@ -600,8 +610,8 @@ nnt_sim<- 1/arr_sim
 cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
 cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
 
-cat(paste(" \n \n The number needed to treat using exact event rates is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
-cat(paste(" \n \n Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
+cat(paste(" The number needed to treat using exact event rates is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
+cat(paste(" Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
 
 
 ```
@@ -614,11 +624,14 @@ cat(paste(" \n \n Using simulation and our exponential model, the number needed 
 
 We can pool the risk ratio at T1, to find the calibrated relative risk after 18 months.
 
-#### Pooled risk ratio at T1
+```{r t1 pooled results printout}
+cat(paste(" \n \nThe estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
+```
+
+\n
+\n
 
 ```{r t1 pooled results,results="asis",fig.width=3,fig.height=2}
-cat(paste(" \n \nThe estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
-
 ggplot(data=as.data.frame(rr_tot_t1))+
   geom_histogram(aes(x=rr_tot_t1), fill="#FCCDE5")+
   theme_bw()+
