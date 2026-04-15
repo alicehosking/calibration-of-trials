@@ -55,7 +55,7 @@ The aim of this study is to calibrate the effect of a low-dose triple pill antih
 
 This study will use stratified data from the TRIDENT trial (the trial population) and data from the LATCH study (the target population), a prospective, population-based inception cohort study of people with ICH in NHS Lothian. 
 
-The TRIDENT trial result showed no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appeared to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_1+t_2=t_3$).
+The TRIDENT trial result showed no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appeared to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). 
 
 There are various methods to calibrate trials. Regression-based approaches and inverse probability weighting require individual patient data.[@Wei2023] Alternatively, one can stratify a trial and target population by key factors, and extract hazard ratios from the trial for each stratum, obviating the need for individual participant data access. We propose to use this method to calibrate TRIDENT to the LATCH population.
 
@@ -63,10 +63,10 @@ In summary, the method is:
 
 * Inspect the distribution of ages in TRIDENT and LATCH to choose sensible stratification ages.
 * Split TRIDENT into strata of age and sex (eg <65 years female, <65 years male, over 65 years female,  over 65 years male)
-* Obtain hazard ratios for TRIDENT for each stratum at 18 months and 4.5 years. 
-* Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at t1 and t3.
+* Obtain hazard ratios for TRIDENT for each stratum at 18 months and from 18 months to end of trial (assumed to be 6 years for this document). 
+* Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at t1 and t2.
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
-* The relative risk for each stratum is then (risk untreated/risk treated). We combind relative risks and use simulation to obtain confidence intervals.
+* The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks and use simulation to obtain confidence intervals.
 
 ### Populations
 
@@ -104,6 +104,11 @@ The trial and target populations are partially overlapping, as the Royal Infirma
 
 We now show the method for calibration. We use LATCH data. We create four strata for this example, and mock hazard ratios for TRIDENT for these strata.
 
+### Time period definitions
+
+We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
+
+
 ### Data tidying
 
 First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years. (Code not shown.)
@@ -123,7 +128,7 @@ latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")]
 latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
 
 #censor status and survival time at 1.5 years, 4.5 years and all time
-latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t3:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t3:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t3)][, survival_stroke_t3:= fifelse(censor_all_str_t3==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t3:=pmin(round(6*365.25,0),survival_stroke_t3)]
+latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
 
 strata<- list(
 latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
@@ -135,16 +140,16 @@ latch_over_65_f<- latch_for_trident[age_index>64& Gender_t=="Female"]
 
 strata_n<- c()
 strata_n_events_t1<- c()
-strata_n_events_t3<- c()
+strata_n_events_t2<- c()
 strata_fu_t1 <- c()
-strata_fu_t3<- c()
+strata_fu_t2<- c()
 
 for(i in 1:length(strata)){
   strata_n[i] <-length(strata[[i]]$i_date) 
   strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
-  strata_n_events_t3[i]<- sum(strata[[i]]$censor_all_str_t3)
+  strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
   strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
-  strata_fu_t3[i]<- sum(strata[[i]]$survival_stroke_t3)
+  strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
 
 }
 
@@ -167,7 +172,7 @@ The exponential model allows much simpler calculations other models. The AICs ar
 
 ```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=6,fig.height=4}
 
-s1<- survfit(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident)
+s1<- survfit(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident)
 km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), risk.table =FALSE,surv.plot.height = 2,
            ggtheme = theme(aspect.ratio = 1),legend="none")
 km_plot
@@ -199,7 +204,7 @@ fit_test<- list()
 
 #loop through each distribution
 for (i in 1:(length(dists)-1)){
-  fit <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
   fit_test[[i]]<- fit
   #hazards for plot 1
   parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
@@ -211,7 +216,7 @@ for (i in 1:(length(dists)-1)){
   }
 
 #add in gompertz separately as failed to initialize
-fit_gompertz <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$surv_time_all_stroke)))) 
+fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$surv_time_all_stroke)))) 
 parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
                                      ci = FALSE, tidy = TRUE)
 parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
@@ -262,13 +267,13 @@ parametric_haz <- vector(mode = "list", length = length(dists))
 fit_test<- list()
 fit_aic<- c()
 for (i in 1:(length(dists)-1)){
-  fit <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
   fit_test[[i]]<- fit
   fit_aic<- c(fit_aic, fit$AIC)
 }
 
 #add in gompertz separately
-fit_gompertz <- flexsurvreg(Surv(survival_stroke_t3, censor_all_str_t3) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$time_to_all_stroke)))) 
+fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$time_to_all_stroke)))) 
 fit_aic<-  c(fit_aic, fit_gompertz$AIC)
 #join all together
 parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
@@ -279,7 +284,7 @@ kable(parametric_aic, col.names=c("Model", "AIC"))%>%
 
 ### Simple event rates {.tabset}
 
-Assuming exponential event rate across t1 and t2, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
 
 
 
@@ -288,10 +293,10 @@ Assuming exponential event rate across t1 and t2, we can calculate the event rat
 nrep<-10000
 
 #event rate at t1 and t2
-rate_est <- strata_n_events_t3/ strata_fu_t3*365.35*100
-log_rate_est <- log(strata_n_events_t3/ strata_fu_t3)
+rate_est <- strata_n_events_t2/ strata_fu_t2*365.35*100
+log_rate_est <- log(strata_n_events_t2/ strata_fu_t2)
 # Calculate SE of the log-rate for untreated
-log_rate_se <- 1 / sqrt(strata_n_events_t3)
+log_rate_se <- 1 / sqrt(strata_n_events_t2)
 ## obtain and plot samples from rate in untreated
 untreated_rates<- as.data.frame(cbind(strata_n, rate_est,log_rate_est, log_rate_se))
 setDT(untreated_rates)
@@ -367,18 +372,18 @@ colnames(hrs_t2) <- c("HR", "l_ci", "u_ci")
 rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 ```
 
-#### Hazard ratio for period t1
+#### Hazard ratio for period $\tau_1$
 ```{r hr for t1}
 kable(round(hrs_t1,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
 ```
 
-#### Hazard ratio for period t2
+#### Hazard ratio for period $\tau_2$
 
 ```{r hr for t2}
 kable(round(hrs_t2,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
 ```
 
-#### Histogram of simulated log hazard ratios for strata 1-4, T1
+#### Histogram of simulated log hazard ratios for strata 1-4, $\tau_1$
 
 ```{r simulate n hrs, warnings=F,fig.width=6,fig.height=4}
 #obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
@@ -404,7 +409,7 @@ ggplot(data=log_hrs_t1_per_strata)+
   xlab("Log of hazard ratio")
 ```
 
-#### Histogram of simulated hazard ratios for strata 1-4, T1 
+#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$
 
 ```{r hist hr t1 exponentiated,fig.width=6,fig.height=4}
 ggplot(data=log_hrs_t1_per_strata)+
@@ -415,7 +420,7 @@ ggplot(data=log_hrs_t1_per_strata)+
   xlab("Hazard ratio")
 ```
 
-#### Histogram of simulated log hazard ratios for strata 1-4, T2
+#### Histogram of simulated log hazard ratios for strata 1-4, $\tau_2$
 
 ```{r t2 hr hists,fig.width=6,fig.height=4}
 #repeat for t2 hazard ratios
@@ -434,7 +439,7 @@ ggplot(data=log_hrs_t2_per_strata)+
   xlab("Log of hazard ratio")
 ```
 
-#### Histogram of simulated hazard ratios for strata 1-4, T2 
+#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ 
 
 ```{r t2 hr exponentiated,fig.width=6,fig.height=4}
 ggplot(data=log_hrs_t2_per_strata)+
@@ -452,19 +457,18 @@ For each age/sex stratum and for each time period, we combine the rate in the un
 We first define the following:
 
 $$\lambda_u=\text{rate in untreated}$$
-$$t_1=\text{length in days of first time period}$$
-$$t_2=\text{length in days of second time period}$$
+
 
 Multiply untreated rates by hazard ratios ($HR$) to get treated event rates:
-$$\lambda_{t1} = \lambda_u \times HR_1$$
-$$\lambda_{t2} = \lambda_u \times HR_2$$
+$$\lambda_{treat1} = \lambda_u \times HR_1$$
+$$\lambda_{treat2} = \lambda_u \times HR_2$$
 
 We then transform these to risks for each stratum:
-$$R_{untreated} = 1 - e^{-\lambda_u(t_1+t_2)}$$ 
+$$R_{untreated} = 1 - e^{-\lambda_u(\tau_1+\tau_2)}$$ 
 
 and 
 
-$$R_{treated} = 1 - e^{-(\lambda_{t1} t_1 + \lambda_{t2} t_2)}$$
+$$R_{treated} = 1 - e^{-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)}$$
 
 The risk ratio at the end of the trial is then:
 
@@ -511,7 +515,7 @@ rr_means_t2<- risk_ratio_for_plot_t2%>%
 
 ```
 
-#### Simulated risk ratios for strata 1-4, T1 
+#### Simulated risk ratios for strata 1-4, $t_1$ 
 
 ```{r risk plot t1,fig.width=6,fig.height=4}
 ggplot(data=risk_ratio_for_plot_t1)+
@@ -519,11 +523,11 @@ ggplot(data=risk_ratio_for_plot_t1)+
   geom_text(data=rr_means_t1, aes(x=1.25, y=1000, label= paste("Mean=",means_t1)), size=3)+
   theme_bw()+
   facet_wrap(vars(V1))+
-  labs(title="Simulated risk ratios for strata 1-4, T1")+ 
+  labs(title=quote("Simulated risk ratios for strata 1-4, "* t[1]* "."))+ 
   xlab("Risk ratio")
 ```
 
-#### Simulated risk ratios for strata 1-4, T1+T2
+#### Simulated risk ratios for strata 1-4, $t_2$
 
 ```{r risk plot t2,fig.width=6,fig.height=4}
 ggplot(data=risk_ratio_for_plot_t2)+
@@ -531,7 +535,7 @@ ggplot(data=risk_ratio_for_plot_t2)+
   geom_text(data=rr_means_t2, aes(x=1, y=1000, label= paste("Mean=",means_t2)), size=3)+
   theme_bw()+
   facet_wrap(vars(V1))+
-  labs(title="Simulated risk ratios for strata 1-4, T1+T2")+ 
+  labs(title= quote("Simulated risk ratios for strata 1-4, "* t[2]* "."))+ 
   xlab("Risk ratio")
 
 ```
@@ -568,7 +572,7 @@ est_t2<- round(mean(rr_tot_t2),3)
 
 
 
-#### Pooled risk ratio at T1 + T2
+#### Pooled risk ratio at the end of the trial
 
 ```{r t2 pooled results numerical, comment=NA}
 
@@ -599,7 +603,7 @@ $$ \text{NNT} = 1/\text{ARR} $$
 
 ```{r absolute risks, comment=NA}
 #without simulation
-event_rate<- sum(strata_n_events_t3)/sum(strata_fu_t3)*365.25
+event_rate<- sum(strata_n_events_t2)/sum(strata_fu_t2)*365.25
 arr <- event_rate- event_rate*rr_tot_t2
 nnt <- 1/arr
 cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
@@ -624,7 +628,7 @@ cat(paste(" Using simulation and our exponential model, the number needed to tre
 
 ## Appendix
 
-We can pool the risk ratio at T1, to find the calibrated relative risk after 18 months.
+We can pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
 
 ```{r t1 pooled results printout, comment=NA}
 cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
