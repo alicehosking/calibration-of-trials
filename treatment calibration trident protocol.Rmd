@@ -37,11 +37,11 @@ This statistical analysis plan details the analyses planned for calibration of t
 
 ### Study overview
 
-Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg. The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Anderson2022]
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Anderson2022]
 
 However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativity of the general population (i.e., lack of external validity).[@Westreich2019; @Bareinboim2016;@Rothwell2005] In particular, women, vulnerable older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.[@Sheppard2020; @Sardar2014; @Carcel2021] Furthermore, the trial was conducted in countries with different demography to the UK.
 
-In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.[@Manke-Reimers2025] Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using real-world cohort studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
+In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.[@Cole2010;@Manke-Reimers2025] Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using real-world cohort studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
 
 
 ### Objectives
@@ -53,9 +53,11 @@ The aim of this study is to calibrate the effect of a low-dose triple pill antih
 
 ### Study design
 
-This study will use stratified data from the TRIDENT trial (the trial population) and data from the LATCH study (the target population) a prospective, population-based inception cohort study of people with ICH in NHS Lothian. 
+This study will use stratified data from the TRIDENT trial (the trial population) and data from the LATCH study (the target population), a prospective, population-based inception cohort study of people with ICH in NHS Lothian. 
 
-The TRIDENT trial result showed that there appeared to be no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appears to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_1+t_2=t_3$).
+The TRIDENT trial result showed no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appeared to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_1+t_2=t_3$).
+
+There are various methods to calibrate trials. Regression-based approaches and inverse probability weighting require individual patient data.[@Wei2023] Alternatively, one can stratify a trial and target population by key factors, and extract hazard ratios from the trial for each stratum, obviating the need for individual participant data access. We propose to use this method to calibrate TRIDENT to the LATCH population.
 
 In summary, the method is:
 
@@ -624,8 +626,8 @@ cat(paste(" Using simulation and our exponential model, the number needed to tre
 
 We can pool the risk ratio at T1, to find the calibrated relative risk after 18 months.
 
-```{r t1 pooled results printout}
-cat(paste(" \n \nThe estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
+```{r t1 pooled results printout, comment=NA}
+cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
 ```
 
 \n
