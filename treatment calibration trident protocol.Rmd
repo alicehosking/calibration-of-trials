@@ -334,7 +334,7 @@ old_young_interaction<- over_60_hr/under_60_hr
 #need to make assumption on HR for young men
 
 hrs_t2<- as.data.frame(rbind(
-hr_young_men<- c(0.45, 0.36, 1.05),
+hr_young_men<- c(0.4, 0.26, 0.8),
 hr_young_women <- hr_young_men*f_m_interaction,
 hr_old_men<- hr_young_men*old_young_interaction,
 hr_old_women <- hr_young_men*f_m_interaction*old_young_interaction
