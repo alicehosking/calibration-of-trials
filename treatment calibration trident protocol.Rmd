@@ -64,9 +64,12 @@ In summary, the method is:
 * Inspect the distribution of ages in TRIDENT and LATCH to choose sensible stratification ages.
 * Split TRIDENT into strata of age and sex (eg <65 years female, <65 years male, over 65 years female,  over 65 years male)
 * Obtain hazard ratios for TRIDENT for each stratum at 18 months and from 18 months to end of trial (assumed to be 6 years for this document). 
-* Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at t1 and t2.
+* Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at $t_1$ and $t_2$.
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
 * The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks and use simulation to obtain confidence intervals.
+
+![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=80%}
+
 
 ### Populations
 
@@ -75,6 +78,7 @@ In summary, the method is:
 The trial population is the 1500 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation was 54 days.
 
 TRIDENT Inclusion Criteria
+
 * Adults (≥18 years) with a history of primary ICH that was confirmed by imaging.
 * Clinically stable, as judged by investigator.
 * An average of two resting systolic blood pressure (SBP) levels measured 5 minutes apart in the range 130-160 mmHg recorded in a seated position. Patients with higher SBP could still be included if it was considered by the site investigator that their management would be consistent with local standards of clinical practice.
@@ -98,20 +102,19 @@ The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presume
 
 #### Overlap between trial and target populations.
 
-The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh was recruited 17 people with ICH for TRIDENT. This does not affect the validity of the process of calibration.
+The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. This does not affect the validity of the process of calibration.
 
 ## Analysis example
 
-We now show the method for calibration. We use LATCH data. We create four strata for this example, and mock hazard ratios for TRIDENT for these strata.
+We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios from TRIDENT. We create four strata for this example.
 
 ### Time period definitions
 
 We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
 
-
 ### Data tidying
 
-First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years. (Code not shown.)
+First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
 
 ```{r read in data, echo=FALSE, message=FALSE}
 latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 7 days.csv")
@@ -282,11 +285,22 @@ kable(parametric_aic, col.names=c("Model", "AIC"))%>%
 ```
 
 
-### Simple event rates {.tabset}
+### Event rates in LATCH {.tabset}
 
 Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
 
+The event rate is defined as:
 
+$$\lambda_u=\text{rate in untreated}$$
+We define $n_s$ as the number of people in each stratum, and $m_s$ as the number of events per stratum.
+
+$$\lambda_u=\frac{m_s}{\text{Total follow up time for stratum}}$$.
+
+As we are assuming an exponential distribution, we can calculate the standard error directly:
+
+$$ ln(SE)= \frac{1}{\sqrt{m_s}}$$.
+
+We can then simulate a normally distributed sample for the event rates.
 
 ```{r simple event rates}
 ## Set number of samples with nrep for use throughout.
@@ -454,27 +468,27 @@ ggplot(data=log_hrs_t2_per_strata)+
 
 For each age/sex stratum and for each time period, we combine the rate in the untreated and the hazard ratio to obtain a risk ratio.
 
-We first define the following:
+Recall:
 
 $$\lambda_u=\text{rate in untreated}$$
 
 
-Multiply untreated rates by hazard ratios ($HR$) to get treated event rates:
+Multiply untreated rates by hazard ratios ($HR$) to get treated event rates in each time period:
 $$\lambda_{treat1} = \lambda_u \times HR_1$$
 $$\lambda_{treat2} = \lambda_u \times HR_2$$
 
 We then transform these to risks for each stratum:
-$$R_{untreated} = 1 - e^{-\lambda_u(\tau_1+\tau_2)}$$ 
+$$R_{untreated} = 1 - exp{(-\lambda_u(\tau_1+\tau_2)})$$ 
 
 and 
 
-$$R_{treated} = 1 - e^{-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)}$$
+$$R_{treated} = 1 - exp{(-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)})$$
 
-The risk ratio at the end of the trial is then:
+The risk ratio at the end of the trial for each stratum is then:
 
-$$ RR= \frac{R_{treated}}{R_{untreated}}$$
+$$ RR_S= \frac{R_{treated}}{R_{untreated}}$$
 
-We have already simulated 10,000 samples for each hazard ratio. We simulate 10,000 samples for event rates, which gives 10,000 risk ratios.
+We have already simulated 10,000 samples for each hazard ratio and event rate, to generate 10,000 risk ratios.
 
 ```{r risks treated and untreated 2}
 #set t1 and t2 in days
@@ -542,7 +556,13 @@ ggplot(data=risk_ratio_for_plot_t2)+
 
 ### Pooled risk ratio
 
-The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. We do this for all 10,000 samples, and then generate a mean and confidence intervals for the calibrated relative risk.
+The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
+
+$$RR_{overall}= \sum_{s} RR_s n_s $$
+
+We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
+
+
 
 ```{r pooling hrs}
 #matrix of risk ratios at t1, one column per stratum
@@ -572,7 +592,7 @@ est_t2<- round(mean(rr_tot_t2),3)
 
 
 
-#### Pooled risk ratio at the end of the trial
+#### Calibrated risk ratio at the end of the trial, for the whole trial
 
 ```{r t2 pooled results numerical, comment=NA}
 
@@ -582,12 +602,12 @@ cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence
 
 \n
 \n
-```{r t2 pooled results,results="asis",fig.width=3,fig.height=2}
+```{r t2 pooled results,results="asis",fig.width=4,fig.height=3}
 
 ggplot(data=as.data.frame(rr_tot_t2))+
   geom_histogram(aes(x=rr_tot_t2), fill="#80B1D3")+
   theme_bw()+
-  labs(title="Simulated risk ratio, T1+T2")+ 
+  labs(title=quote("Simulated risk ratio for the whole trial at "* t[2]* ".) "))+ 
   xlab("Risk ratio")
 
 
@@ -595,9 +615,9 @@ ggplot(data=as.data.frame(rr_tot_t2))+
 
 ### Absolute risk 
 
-We can use the new, calibrated risk ratio to estimate the number needed to treat (NNT) from the absolute risk ratio (ARR).
+We can use the new, calibrated risk ratio to estimate the number needed to treat (NNT) in the LATCH cohort from the absolute risk ratio (ARR). We use 10,000 samples of the risk ratio, and generate confidence intervals.
 
-$$ARR = 1/(\lambda_u - \lambda_u \times RR)$$
+$$ARR = 1/(\lambda_u - \lambda_u \times RR_{overall})$$
 
 $$ \text{NNT} = 1/\text{ARR} $$
 
@@ -610,17 +630,22 @@ cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
 cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
 
 #with simulation
-event_rate_sim<- lambda_u_sim*365.25
-arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
-nnt_sim<- 1/arr_sim
-cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
-cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
+# event_rate_sim<- lambda_u_sim*365.25
+# arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
+# nnt_sim<- 1/arr_sim
+# cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
+# cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
 
-cat(paste(" The number needed to treat using exact event rates is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
-cat(paste(" Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
+cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
+# cat(paste(" Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
 
 
 ```
+
+## Extension to adverse events
+
+Benefits of treatment must be balanced against potential risks. A key concern with antihypertensive treatment is effect on renal function. TRIDENT measured creatinine at baseline, 6 weeks, and at the end of the trial. We have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR).
+
 ## References
 
 <div id="refs"></div>
