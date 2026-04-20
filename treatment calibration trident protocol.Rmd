@@ -79,14 +79,14 @@ In summary, the method is:
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
 * The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks as a weighted mean, with the weights the number of people in each stratum in LATCH.
 
-![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=80%}
+![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=100%}
 
 
 ### Populations
 
 #### Trial population
 
-The trial population is the 1670 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days.
+The trial population is the 1670 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days. The primary outcome was time to first recurrent stroke.
 
 TRIDENT Inclusion Criteria
 
@@ -110,7 +110,7 @@ The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010
 The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines.
 
 *	In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
-*	If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure. 
+*	We did not have measurement of post-ICH blood pressure for all of LATCH. Almost everyone with intracerebral haemorrhage is hypertensive; we expect very few to have blood pressure . If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure.
 *	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
 * The TRIDENT pill would be used instead of single agent blood-pressure medications, which those in LATCH might be on at discharge.
 
@@ -195,9 +195,10 @@ The exponential model allows much simpler calculations other models. The AICs ar
 ```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=6,fig.height=4}
 
 s1<- survfit(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident)
-km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), risk.table =FALSE,surv.plot.height = 2,
-           ggtheme = theme(aspect.ratio = 1),legend="none")
-km_plot
+km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), break.x.by = 365.25, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
 ```
 
 
@@ -262,7 +263,9 @@ parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
 ggplot() + 
   geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
   geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
-  xlab("Days") +ylab("Survival") 
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
 ```
 
 #### Plot of hazards of various distributions
@@ -275,7 +278,10 @@ ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
                       values = c("black", rainbow(n_dists))) +
   scale_linetype_manual(name = "",
                         values = c(1, rep_len(2:6, n_dists)))+
-  xlim(0, 365.25*6)
+  xlim(0, 365.25*6)+
+  xlab("Years") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6), limits = c(0,365.35*6))
 
 ```
 
@@ -339,6 +345,15 @@ log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), 
 #rename I column to the strata names
 strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
+
+#calculate confidence intervals for visualisation
+untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
+
+#round all the numbers
+untreated_rates<- round(untreated_rates,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")")][,rate_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
+
 ```
 
 #### Table of event rates for each stratum
@@ -347,8 +362,11 @@ log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
 #print table of rates
 untreated_rates<- as.data.frame(untreated_rates)
 rownames(untreated_rates)<- strata
-colnames(untreated_rates) <- c( "N in stratum", "Events per 100 person years", "log(rate/day)", "log(standard error)")
-(round(untreated_rates,2))%>%
+
+
+
+colnames(untreated_rates) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% confidence interval")
+untreated_rates%>%
   kable(row.names = T)
 # %>%
 #   kable_styling(full_width = F)
