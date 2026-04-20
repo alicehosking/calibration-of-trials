@@ -1,14 +1,18 @@
 ---
-title: "Statistical analysis plan for calibration of the Trident trial to a population-based cohort in Scotland."
+title: "Statistical analysis plan for calibration of the Trident trial to a population-based
+  cohort in Scotland."
 author: "Dr Alice Hosking, Prof David McAllister, ...."
 date: "`r Sys.Date()`"
-output: 
-  html_document:
-          toc: true
-          number_sections: true
-          theme: united
-bibliography: calibration.bib 
-csl: american-medical-association-10th-edition.csl
+output:
+  word_document:
+    toc: true
+  # html_document:
+  #   toc: true
+    number_sections: true
+    # theme: united
+bibliography: calibration.bib
+csl: "american-medical-association-10th-edition.csl"
+always_allow_html: true
 
 ---
 
@@ -37,16 +41,21 @@ This statistical analysis plan details the analyses planned for calibration of t
 
 ### Study overview
 
-Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomized trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Anderson2022]
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomised trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Anderson2022]
 
-However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativity of the general population (i.e., lack of external validity).[@Westreich2019; @Bareinboim2016;@Rothwell2005] In particular, women, vulnerable older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.[@Sheppard2020; @Sardar2014; @Carcel2021] Furthermore, the trial was conducted in countries with different demography to the UK.
+However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativeness of the general population (i.e., lack of external validity).[@Westreich2019; @Bareinboim2016;@Rothwell2005] In particular, women, older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.[@Sheppard2020; @Sardar2014; @Carcel2021] Furthermore, the trial was conducted in countries with different demography to the UK.The mean age of people with incident ICH in two pooled cohorts from Oxfordshire, England and Lothian, Scotland was 74.7 years, with 53% of the cohort being female.@Li2021 TRIDENT only includes those who survived long enough to be enrolled in the trial; nevertheless, the mean age was 58 years in both treatment and placebo arm, and women comprised 33% and 34% of each arm.
 
-In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.[@Cole2010;@Manke-Reimers2025] Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using real-world cohort studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
+In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.[@Cole2010;@Manke-Reimers2025] Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using observational studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
 
 
 ### Objectives
 
 The aim of this study is to calibrate the effect of a low-dose triple pill antihypertensive medication in people with ICH from the TRIDENT trial to a population-based cohort in Lothian, Scotland.
+
+The outcome will be:
+
+* A measure of relative effect, the risk ratio, calibrated to the Lothian population.
+* A measure of absolute effect, the number needed to treat, calibrated to the Lothian population.
 
 
 ## Study design, population and outcomes
@@ -57,16 +66,18 @@ This study will use stratified data from the TRIDENT trial (the trial population
 
 The TRIDENT trial result showed no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appeared to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). 
 
-There are various methods to calibrate trials. Regression-based approaches and inverse probability weighting require individual patient data.[@Wei2023] Alternatively, one can stratify a trial and target population by key factors, and extract hazard ratios from the trial for each stratum, obviating the need for individual participant data access. We propose to use this method to calibrate TRIDENT to the LATCH population.
+There are various methods to calibrate trials. Regression-based approaches and inverse probability weighting require individual patient data.[@Wei2023] Alternatively, one can stratify a trial and target population by key factors, and extract hazard ratios from the trial for each stratum, obviating the need for individual participant data access. We propose to use this method to calibrate TRIDENT to the LATCH population. 
+
+We will calibrate based on age and sex, two factors by which the TRIDENT population differs to the UK population with ICH. Age is strongly related to other characteristics such as multimorbidity and frailty which are commonly under-represented in clinical trials, but were not directly measured in TRIDENT.@Barnett2012
 
 In summary, the method is:
 
-* Inspect the distribution of ages in TRIDENT and LATCH to choose sensible stratification ages.
+* Inspect the distribution of ages in TRIDENT and LATCH to choose stratification ages with sufficient overlap between LATCH and TRIDENT.
 * Split TRIDENT into strata of age and sex (eg <65 years female, <65 years male, over 65 years female,  over 65 years male)
-* Obtain hazard ratios for TRIDENT for each stratum at 18 months and from 18 months to end of trial (assumed to be 6 years for this document). 
+* Obtain hazard ratios and their 95% confidence intervals for TRIDENT for each stratum at 18 months and from 18 months to end of trial (assumed to be 6 years for this document). 
 * Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at $t_1$ and $t_2$.
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
-* The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks and use simulation to obtain confidence intervals.
+* The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks as a weighted mean, with the weights the number of people in each stratum in LATCH.
 
 ![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=80%}
 
@@ -75,7 +86,7 @@ In summary, the method is:
 
 #### Trial population
 
-The trial population is the 1500 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation was 54 days.
+The trial population is the 1670 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days.
 
 TRIDENT Inclusion Criteria
 
@@ -85,28 +96,36 @@ TRIDENT Inclusion Criteria
 * Geographical proximity to the recruiting hospital and/or follow-up medical clinic site to allow ready access for in-person assessments during follow-up.
 * No clear contraindication or indication to any of the individual components of the Investigational Medical Product (IMP).
 * Provision of written informed consent
+
 TRIDENT Exclusion Criteria
+
 * Taking an angiotensin converting enzyme inhibitor (ACE-I) that could not be switched to any of the following alternatives: an angiotensin receptor blocker (ARB) (e.g. telmisartan 20 or 40 mg), a calcium channel blocker (CCB) (e.g. amlodipine 2.5 or 5 mg), or a thiazide (TZ)-like diuretic (e.g. indapamide 1.25 mg); an equivalent class (ARB, CCB or TZ); or a beta-blocker (BB).
 * Contraindication to any component of the IMP in the context of currently prescribed BP lowering treatment.
 * Unable to complete the study procedures and/or follow-up.
 
 #### Target population
 
-The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Ethical approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.[@Samarasekera2015] In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,[@Turner2015] and records at the Office of the Procurator Fiscal.  
+The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.[@Samarasekera2015] In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,[@Turner2015] and death records at the Office of the Procurator Fiscal.  
 
-The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the pill, if it were recommended in clinical treatment guidelines.
+The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines.
 
 *	In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
 *	If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure. 
-*	The pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
+*	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
+* The TRIDENT pill would be used instead of single agent blood-pressure medications, which those in LATCH might be on at discharge.
 
 #### Overlap between trial and target populations.
 
-The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. This does not affect the validity of the process of calibration.
+The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. This does not affect the process of calibration, as we make no assumptions about independence of the target and trial populations.
+
+#### Assumptions
+
+We assume that we correctly measure and model the determinants that reflect heterogeneity in the treatment effect. In practice, we cannot ever measure all effects that might lead to heterogeneity, and we are limited by effects measured both in the trial and target population. We also did not account for post-randomisation variables.
+
 
 ## Analysis example
 
-We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios from TRIDENT. We create four strata for this example.
+We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios (and their 95% confidence intervals) from TRIDENT. We create four strata for this example.
 
 ### Time period definitions
 
@@ -280,14 +299,15 @@ fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, dat
 fit_aic<-  c(fit_aic, fit_gompertz$AIC)
 #join all together
 parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
-kable(parametric_aic, col.names=c("Model", "AIC"))%>%
-  kable_styling(full_width = F)
+kable(parametric_aic, col.names=c("Model", "AIC"))
+# %>%
+#   kable_styling(full_width = F)
 ```
 
 
 ### Event rates in LATCH {.tabset}
 
-Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample.@Greenland2004 Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
 
 The event rate is defined as:
 
@@ -329,8 +349,9 @@ untreated_rates<- as.data.frame(untreated_rates)
 rownames(untreated_rates)<- strata
 colnames(untreated_rates) <- c( "N in stratum", "Events per 100 person years", "log(rate/day)", "log(standard error)")
 (round(untreated_rates,2))%>%
-  kable(row.names = T)%>%
-  kable_styling(full_width = F)
+  kable(row.names = T)
+# %>%
+#   kable_styling(full_width = F)
 
 ```
 
@@ -388,13 +409,13 @@ rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and 
 
 #### Hazard ratio for period $\tau_1$
 ```{r hr for t1}
-kable(round(hrs_t1,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
+kable(round(hrs_t1,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))#%>% kable_styling(full_width = F)
 ```
 
 #### Hazard ratio for period $\tau_2$
 
 ```{r hr for t2}
-kable(round(hrs_t2,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))%>% kable_styling(full_width = F)
+kable(round(hrs_t2,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))#%>% kable_styling(full_width = F)
 ```
 
 #### Histogram of simulated log hazard ratios for strata 1-4, $\tau_1$
@@ -644,7 +665,7 @@ cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", rou
 
 ## Extension to adverse events
 
-Benefits of treatment must be balanced against potential risks. A key concern with antihypertensive treatment is effect on renal function. TRIDENT measured creatinine at baseline, 6 weeks, and at the end of the trial. We have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR).
+Benefits of treatment must be balanced against potential risks. Adverse events of special interest were hypotension, syncope, headache, hyponatremia, hyperkalemia, injurious falls,and acute kidney injury. There was also a protocol requirement of discontinuation if serum creatinine increased level of 20% or more from the baseline value (creatinine was measured at baseline, 6 weeks and at the end of the trial). We have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR).
 
 ## References
 
