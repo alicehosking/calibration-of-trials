@@ -4,15 +4,15 @@ title: "Statistical analysis plan for calibration of the Trident trial to a popu
 author: "Dr Alice Hosking, Prof David McAllister, ...."
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    toc: true
-  # html_document:
+  # word_document:
   #   toc: true
+  html_document:
+    toc: true
     number_sections: true
     # theme: united
 bibliography: calibration.bib
 csl: "american-medical-association-10th-edition.csl"
-always_allow_html: true
+
 
 ---
 
@@ -23,14 +23,19 @@ library(flexsurv)
 library(survival)
 library(SurvRegCensCov)
 library(muhaz)
-library(kableExtra)
 library(ggsurvfit)
 library(survminer)
 library(rmeta)
+library(flextable)
 
 set.seed(42)
 
 knitr::opts_chunk$set(message = F, warning=F, echo=F)
+
+set_flextable_defaults(
+  font.size = 10, theme_fun = theme_vanilla,
+  padding = 6,
+  background.color = "#FFFFFF")
 ```
 
 ## Introduction
@@ -305,9 +310,11 @@ fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, dat
 fit_aic<-  c(fit_aic, fit_gompertz$AIC)
 #join all together
 parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
-kable(parametric_aic, col.names=c("Model", "AIC"))
-# %>%
-#   kable_styling(full_width = F)
+colnames(parametric_aic)<- c("Model", "AIC")
+ft<- flextable(parametric_aic)
+ft <- width(ft,width=dim_pretty(ft)$widths)
+ft
+
 ```
 
 
@@ -352,7 +359,7 @@ untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, up
 #round all the numbers
 untreated_rates<- round(untreated_rates,2)
 #make the rate and confidence intervals look nice in one column
-untreated_rates[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")")][,rate_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
+untreated_rates[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
 
 ```
 
@@ -365,12 +372,13 @@ rownames(untreated_rates)<- strata
 
 
 
-colnames(untreated_rates) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% confidence interval")
-untreated_rates%>%
-  kable(row.names = T)
-# %>%
-#   kable_styling(full_width = F)
+colnames(untreated_rates) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
 
+
+ft_rates<- flextable(untreated_rates)
+
+ft_rates2 <- width(ft_rates,width=dim_pretty(ft_rates)$widths)
+ft_rates2
 ```
 
 
@@ -427,13 +435,21 @@ rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and 
 
 #### Hazard ratio for period $\tau_1$
 ```{r hr for t1}
-kable(round(hrs_t1,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))#%>% kable_styling(full_width = F)
+
+ft_hr_t1<- flextable(round(hrs_t1,2))
+ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
+ft_hr_t1_a
+
 ```
 
 #### Hazard ratio for period $\tau_2$
 
 ```{r hr for t2}
-kable(round(hrs_t2,2), col.names=c("Hazard ratio", "Lower CI", "Upper CI"))#%>% kable_styling(full_width = F)
+ft_hr_t2<- flextable(round(hrs_t2,2))
+ft_hr_t2<- set_header_labels(ft_hr_t2, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t2_a <- width(ft_hr_t2,width=dim_pretty(ft_hr_t2)$widths)
+ft_hr_t2_a
 ```
 
 #### Histogram of simulated log hazard ratios for strata 1-4, $\tau_1$
