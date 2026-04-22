@@ -1,13 +1,14 @@
 ---
 title: "Statistical analysis plan for calibration of the Trident trial to a population-based
   cohort in Scotland."
-author: "Dr Alice Hosking, Prof David McAllister, ...."
+author: "Dr Alice Hosking, Prof Rustam Al-Shahi Salman, Prof William Whiteley, Prof David McAllister"
+email: "alice.hosking@ed.ac.uk"
 date: "`r Sys.Date()`"
 output:
-  # word_document:
-  #   toc: true
-  html_document:
+  word_document:
     toc: true
+  # html_document:
+  #   toc: true
     number_sections: true
     # theme: united
 bibliography: calibration.bib
@@ -84,7 +85,7 @@ In summary, the method is:
 * Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
 * The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks as a weighted mean, with the weights the number of people in each stratum in LATCH.
 
-![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=100%}
+![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=90%}
 
 
 ### Populations
@@ -110,27 +111,27 @@ TRIDENT Exclusion Criteria
 
 #### Target population
 
-The Lothian Audit of Intracerebral Haemorrhage (LATCH) ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021. Approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.[@Samarasekera2015] In brief, LATCH ascertained cases of first-ever or recurrent ICH from the Lothian Health board region of Scotland in residents aged ≥16 years. Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. We conducted retrospective searches of electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,[@Turner2015] and death records at the Office of the Procurator Fiscal.  
+We aim to calibrate to a target population that reflects who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines. 
 
-The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause. The LATCH study does not include information on clinical stability so we make assumptions to mirror the TRIDENT inclusion criteria. We aim to identify those in LATCH who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines.
+The Lothian Audit of Intracerebral Haemorrhage (LATCH) was a population-based cohort study that ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021, with the aim of near-complete ascertainment of ICH in the Lothian Health board region of Scotland in residents aged ≥16 years. Approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.[@Samarasekera2015] Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. Retrospective sources were electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,[@Turner2015] and death records at the Office of the Procurator Fiscal.  
 
-*	In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
+The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause.  We aim to identify those in LATCH who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines, based on the TRIDENT inclusion criteria and prescribing practice:
+
+*	In clinical practice, antihypertensive treatment for secondary prevention is often started once a person is clinically stable. In the LATCH cohort, a third of people die within 7 days of ICH; beyond 7 days, the death rate reduces, and we pragmatically assume those alive at 7 days after ICH are clinically stable; there are 602 people alive at 7 days. 
 *	We did not have measurement of post-ICH blood pressure for all of LATCH. Almost everyone with intracerebral haemorrhage is hypertensive; we expect very few to have blood pressure . If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure.
 *	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
-* The TRIDENT pill would be used instead of single agent blood-pressure medications, which those in LATCH might be on at discharge.
 
-#### Overlap between trial and target populations.
 
-The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. This does not affect the process of calibration, as we make no assumptions about independence of the target and trial populations.
+#### Assumptions and limitations
 
-#### Assumptions
-
-We assume that we correctly measure and model the determinants that reflect heterogeneity in the treatment effect. In practice, we cannot ever measure all effects that might lead to heterogeneity, and we are limited by effects measured both in the trial and target population. We also did not account for post-randomisation variables.
+* We assume that the hazard ratios for each stratum reflect real variation in hazard by age and sex, rather than random variation around the mean.
+* The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. Therefore approximately 9 people in the target population (1.5%) are on treatment. We cannot identify those treated, but assume this will make a negligible difference to the untreated rate.
+* There were limitations to the maximum doses of additional blood pressure treatment for those in both treatment and placebo arms of TRIDENT. People in LATCH may have been prescribed doses in excess of this, but we do not have data on discharge medications for the whole LATCH population, so cannot exclude these people.
 
 
 ## Analysis example
 
-We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios (and their 95% confidence intervals) from TRIDENT. We create four strata for this example.
+We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios (and their 95% confidence intervals) from TRIDENT. We create age/sex four strata for this example.
 
 ### Time period definitions
 
@@ -699,7 +700,11 @@ cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", rou
 
 ## Extension to adverse events
 
-Benefits of treatment must be balanced against potential risks. Adverse events of special interest were hypotension, syncope, headache, hyponatremia, hyperkalemia, injurious falls,and acute kidney injury. There was also a protocol requirement of discontinuation if serum creatinine increased level of 20% or more from the baseline value (creatinine was measured at baseline, 6 weeks and at the end of the trial). We have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR).
+Benefits of treatment must be balanced against potential risks, and so it might be informative to calibrate adverse events. In TRIDENT, adverse events of special interest were hypotension, syncope, headache, hyponatremia, hyperkalemia, injurious falls,and acute kidney injury. There was also a protocol requirement of discontinuation if serum creatinine increased level of 20% or more from the baseline value (creatinine was measured at baseline, 6 weeks and at the end of the trial). 
+
+Most of these adverse events were not measured in LATCH, but we have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. While a decline in renal function might not lead to discontinuation of a drug, it might have important implications for drug monitoring.
+
+If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR). 
 
 ## References
 
