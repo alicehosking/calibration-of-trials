@@ -14,7 +14,6 @@ output:
 bibliography: calibration.bib
 csl: "american-medical-association-10th-edition.csl"
 
-
 ---
 
 ```{r setup, include=FALSE}
@@ -47,7 +46,7 @@ This statistical analysis plan details the analyses planned for calibration of t
 
 ### Study overview
 
-Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomised trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Anderson2022]
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomised trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Chalmers2026]
 
 However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativeness of the general population (i.e., lack of external validity).[@Westreich2019; @Bareinboim2016;@Rothwell2005] In particular, women, older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.[@Sheppard2020; @Sardar2014; @Carcel2021] Furthermore, the trial was conducted in countries with different demography to the UK.The mean age of people with incident ICH in two pooled cohorts from Oxfordshire, England and Lothian, Scotland was 74.7 years, with 53% of the cohort being female.@Li2021 TRIDENT only includes those who survived long enough to be enrolled in the trial; nevertheless, the mean age was 58 years in both treatment and placebo arm, and women comprised 33% and 34% of each arm.
 
