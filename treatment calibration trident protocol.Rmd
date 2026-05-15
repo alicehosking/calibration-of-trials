@@ -363,7 +363,7 @@ log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
 
 #calculate confidence intervals for visualisation
 untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
-saveRDS(untreated_rates, "LATCH untreated rates, strata above and below 65 years.rds")
+saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and below 65 years.rds")
 
 #round all the numbers
 untreated_rates_round<- round(untreated_rates,2)

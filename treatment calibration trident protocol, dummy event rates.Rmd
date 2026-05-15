@@ -162,7 +162,7 @@ rate_est<- readRDS("RDS files/LATCH rates, strata above and below 65 years.rds")
 log_rate_est<- readRDS("RDS files/LATCH log rates, strata above and below 65 years.rds")
 log_rate_se<- readRDS( "RDS files/LATCH se log rates, strata above and below 65 years.rds")
 
-untreated_rates <- readRDS("LATCH untreated rates, strata above and below 65 years.rds")
+untreated_rates <- readRDS("RDS files/LATCH untreated rates, strata above and below 65 years.rds")
 log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
 strata_vars<- readRDS("RDS files/n per strata, 65yrs.rds")
 #rename I column to the strata names
