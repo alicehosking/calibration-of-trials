@@ -136,189 +136,6 @@ We now show the method for calibration through a worked example using real LATCH
 
 We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
 
-### Data tidying
-
-First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
-
-```{r read in data, echo=FALSE, message=FALSE}
-latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 7 days.csv")
-setDT(latch_for_tridentx)
-latch_for_trident<- latch_for_tridentx[,c("survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
-#some dates are stored as excel formatted dates. 
-#for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
-latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
-
-#time to first event
-latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,i_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,i_date,  units="days")]
-
-# if no first event, time to end of death/ end study
-latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
-
-#censor status and survival time at 1.5 years, 4.5 years and all time
-latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
-
-strata<- list(
-latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
-latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
-latch_over_65_m<- latch_for_trident[age_index>64&Gender_t=="Male"],
-latch_over_65_f<- latch_for_trident[age_index>64& Gender_t=="Female"]
-  
-)
-
-strata_n<- c()
-strata_n_events_t1<- c()
-strata_n_events_t2<- c()
-strata_fu_t1 <- c()
-strata_fu_t2<- c()
-
-for(i in 1:length(strata)){
-  strata_n[i] <-length(strata[[i]]$i_date) 
-  strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
-  strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
-  strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
-  strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
-
-}
-strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2)
-saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
-
-```
-
-
-### Parametric survival model for LATCH {.tabset}
-
-We model the event rate (stroke recurrence) in LATCH for each stratum. We use a parametric model. 
-
-First inspect the Kaplan Meier curve. This looks approximately exponential. 
-
-We model the event rate with a parametric survival model to select the most appropriate distribution, using the flexsurv package in R. There are various choices for the model distribution (exponential, gamma, Weibull etc). We compare the hazard and survival plots for each distribution to a non-parametric model (the kernel, in black), and the AIC for each distribution.
-
-The exponential model allows much simpler calculations other models. The AICs are all similar (gamma is the lowest). Although other models have marginally better fits, the exponential model fit is acceptable, and for analytical simplicity, we choose an exponential model.
-
-
-#### Kaplan Meier curve
-
-
-```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=6,fig.height=4}
-
-s1<- survfit(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident)
-km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), break.x.by = 365.25, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
-           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
-km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                                     labels = c(0,1,2,3,4,5,6))
-```
-
-
-
-```{r choose parametric model for event rate}
-
-# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
-#from help page - choosing best model based on shape of distribution
-
-# cran vignette from flexsurv package also useful
-# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
-
-#non-parametric model for comparison
-kernel_haz_est <- muhaz(as.difftime(latch_for_trident$surv_time_all_stroke, units="days"), latch_for_trident$censor_status_all_str_all_time)
-kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
-
-#vectors of all the options
-dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
-dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
-
-#parametric model - generate hazards and survival for different distributions, for whole dataset
-#initialise variables
-parametric_haz <- vector(mode = "list", length = length(dists))
-parametric_preds <- vector(mode = "list", length = length(dists))
-fit_test<- list()
-
-#loop through each distribution
-for (i in 1:(length(dists)-1)){
-  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
-  fit_test[[i]]<- fit
-  #hazards for plot 1
-  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
-  parametric_haz[[i]]$method <- dists_long[i]
-  #survival for plot 2
-  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
-  parametric_preds[[i]]$method <- dists_long[i]
-  
-  }
-
-#add in gompertz separately as failed to initialize
-fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$surv_time_all_stroke)))) 
-parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
-                                     ci = FALSE, tidy = TRUE)
-parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
-parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
-                                     ci = FALSE, tidy = TRUE)
-parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
-
-#join all together
-parametric_haz <- rbindlist(parametric_haz)
-haz <- rbind(kernel_haz, parametric_haz)
-haz[, method := factor(method,
-                       levels = c("Kernel density",
-                                  dists_long))]
-n_dists <- length(dists) 
-```
-#### Plot of survivals of various distributions
-
-```{r survival plots,fig.width=8,fig.height=4}
-
-parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
-ggplot() + 
-  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
-  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
-  xlab("Years") +ylab("Survival free of recurrent stroke") +
-  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                                     labels = c(0,1,2,3,4,5,6))
-```
-
-#### Plot of hazards of various distributions
-```{r hazard plot,fig.width=8,fig.height=4}
-
-ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
-  geom_line() +
-  xlab("Days") + ylab("Hazard") + 
-  scale_colour_manual(name = "", 
-                      values = c("black", rainbow(n_dists))) +
-  scale_linetype_manual(name = "",
-                        values = c(1, rep_len(2:6, n_dists)))+
-  xlim(0, 365.25*6)+
-  xlab("Years") +
-  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                                     labels = c(0,1,2,3,4,5,6), limits = c(0,365.35*6))
-
-```
-
-
-
-#### Comparison of AIC
-
-```{r aic}
-
-parametric_haz <- vector(mode = "list", length = length(dists))
-fit_test<- list()
-fit_aic<- c()
-for (i in 1:(length(dists)-1)){
-  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
-  fit_test[[i]]<- fit
-  fit_aic<- c(fit_aic, fit$AIC)
-}
-
-#add in gompertz separately
-fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$time_to_all_stroke)))) 
-fit_aic<-  c(fit_aic, fit_gompertz$AIC)
-#join all together
-parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
-colnames(parametric_aic)<- c("Model", "AIC")
-ft<- flextable(parametric_aic)
-ft <- width(ft,width=dim_pretty(ft)$widths)
-ft
-
-```
-
 
 ### Event rates in LATCH {.tabset}
 
@@ -340,30 +157,19 @@ We can then simulate a normally distributed sample for the event rates.
 ```{r simple event rates}
 ## Set number of samples with nrep for use throughout.
 nrep<-10000
-
 #event rate at t1 and t2
-rate_est <- strata_vars$strata_n_events_t2/ strata_vars$strata_fu_t2*365.35*100
-log_rate_est <- log(strata_vars$strata_n_events_t2/ strata_vars$strata_fu_t2)
+rate_est<- readRDS("RDS files/LATCH rates, strata above and below 65 years.rds")
+log_rate_est<- readRDS("RDS files/LATCH log rates, strata above and below 65 years.rds")
+log_rate_se<- readRDS( "RDS files/LATCH se log rates, strata above and below 65 years.rds")
 
-# Calculate SE of the log-rate for untreated
-log_rate_se <- 1 / sqrt(strata_vars$strata_n_events_t2)
-saveRDS(rate_est, "RDS files/LATCH rates, strata above and below 65 years.rds")
-saveRDS(log_rate_est, "RDS files/LATCH log rates, strata above and below 65 years.rds")
-saveRDS(log_rate_se, "RDS files/LATCH se log rates, strata above and below 65 years.rds")
-
-
-## obtain and plot samples from rate in untreated
-untreated_rates<- as.data.frame(cbind(strata_vars$strata_n, rate_est,log_rate_est, log_rate_se))
-setDT(untreated_rates)
+untreated_rates <- readRDS("LATCH untreated rates, strata above and below 65 years.rds")
 log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
-
+strata_vars<- readRDS("RDS files/n per strata, 65yrs.rds")
 #rename I column to the strata names
 strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
 log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
 
-#calculate confidence intervals for visualisation
-untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
-saveRDS(untreated_rates, "LATCH untreated rates, strata above and below 65 years.rds")
+
 
 #round all the numbers
 untreated_rates_round<- round(untreated_rates,2)
