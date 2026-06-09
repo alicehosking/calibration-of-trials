@@ -760,7 +760,9 @@ ggplot(data=as.data.frame(rr_tot_t1))+
 
 To properly calculate absolute risk of recurrent stroke, we need to take into account competing risk of death. We earlier defined variables to allow us to calculate the rate of competing events. At this stage, I've just done for the whole dataset, not individual strata.
 
-### Model selection {.tabset}
+### Model selection for competing risk {.tabset}
+
+Ideally we would model the competing risk of death as an exponential, for ease of calculation.  There appears to be a high early death rate until T1, which might be better fit by alternative model. To be discussed with David.
 
 #### KM curve
 
@@ -784,7 +786,7 @@ km_plot_t1$plot+  scale_x_continuous(breaks = c(0,365.25),
 
 #### Parametric model
 
-Look to see if the exponential model is acceptable at t2. There appears to be a high early death rate until T1, which might be better fit by alternative model. To be discussed with David.
+Look to see if the exponential model is acceptable at t2.
 
 ```{r choose parametric model for competing event rate}
 
@@ -977,16 +979,19 @@ ft_rates_comp2
 ### Calculate event rates accounting for competing risk
 
 At this stage I haven't simulated confidence intervals.
-The cumulative survival at each time point, taking into account competing risk of death, is 
+The proportion event-free at each time point, taking into account competing risk of death, is 
 
-$$\text{cumulative survival} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$.
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$.
 
-The cumulative incidence is then:
+The cumulative incidence of the outcome event $i$ is then:
 
-$$ \text{cumulative incidence} = \text{cumulative survival} \times \lambda_i / (\lambda_i + \lambda_j)$$
-At t1, this is as follows.
+$$ \text{cumulative incidence} = \text{proportion event-free} \times \lambda_i / (\lambda_i + \lambda_j)$$
 
-```{r calculate competing risk from DM code}
+#### Single hazard ratio
+
+At t1, the cumulative risks are as follows.
+
+```{r calculate competing risk from DM code, echo=T}
 # This is adapted from David McAllister's code. He defines rate in each arm, and the competing risk rate.
 # rate.main - lambda_t1_sim and lambda_t2_sim for treated; lambda_u_sim for untreated
 # rate.compete = exp(log_lambda_u_comp_sim)
@@ -1043,15 +1048,21 @@ effects <- tibble(obs.times = t1_times,
 plot1 <- ggplot (arms , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
   geom_smooth(se = FALSE) +
   scale_x_continuous("Time (days)") +
-  scale_y_continuous ("Cumulative incidence") 
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
 plot1
 
 
 
 ```
-```{r calculate competing risk at T2 from DM code}
-#we amend the above code to account for two periods with different hazard ratios.
 
+#### Time-varying hazard ratio
+
+I have amended the code to account for two distinct time periods, with different rates of outcome event.
+
+```{r calculate competing risk at T2 from DM code, echo=TRUE}
+#we amend the above code to account for two periods with different treated event rates.
+#need to adjust starting point after t1
 
 MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_times, t2_times){
   all_times <- c(t1_times, t2_times)
@@ -1059,15 +1070,17 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   p_new <- matrix(NA, ncol = 3, nrow = length(all_times))
   cumslam_new <- NA
   
-  
   lambda_new [1:length(t1_times),1] <- rate.main.t1
-  lambda_new[(length(t1_times)+1):max(t2_times),1 ]<- rate.main.t2
+  lambda_new[(length(t1_times)+1):length(all_times),1 ]<- rate.main.t2
   lambda_new [,2] <- rate.compete
   
   slam_new_1 <- rowSums(lambda_new[1:length(t1_times),1:2]) 
-  slam_new_2 <- rowSums(lambda_new[(length(t1_times)+1):max(t2_times),1:2]) 
+  slam_new_2 <- rowSums(lambda_new[(length(t1_times)+1):length(all_times),1:2]) 
   slam_new <- c(slam_new_1, slam_new_2)
-  cumslam_new <- 1 - exp(-(slam_new*all_times))
+  
+  cumslam_new_1 <- 1 - exp(-(slam_new_1*t1_times))
+  cumslam_new_2<- 1- exp(-slam_new_2*t2_times) - exp(-slam_new_1*max(t1_times))+exp(-slam_new_2*min(t2_times)) #here, we alter the intercept by the difference between the t1 and t2 rate.
+  cumslam_new <- c(cumslam_new_1, cumslam_new_2)
   
   # Calculate cumulative incidence for each outcome
   for (j in 1:2){
@@ -1078,17 +1091,13 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   p_new
 }
 
-
-
-
-
 t2_times <- seq(549, 365.25*6, 1)
 
 #lambda for each stratum is in a vector nrep *length(strata) long.
 #do overall, then loop through for each stratum
 
 # Placebo arm
-pl_2 <- MakeCumulative2("u",
+pl_2 <- MakeCumulative2(arm="u",
                      rate.main.t1 = mean(lambda_u_sim[1:length(strata) * nrep]),
                      rate.main.t2 = mean(lambda_u_sim[1:length(strata) * nrep]),
                      rate.compete= sum(exp(log_lambda_u_comp[1:length(strata)*nrep,2]))/(length(strata)*nrep), 
@@ -1104,26 +1113,24 @@ tx_2 <- MakeCumulative2 (arm = "rx",
 
 ## Calculate comparisons
 arr_2 = pl_2 - tx_2
-rr_2 = tx/pl
-or_2 = (tx/(1-tx)) / (pl/(1-pl))
+rr_2 = tx_2/pl_2
+or_2 = (tx_2/(1-tx_2)) / (pl_2/(1-pl_2))
 
 ## Arrange data for plots
 arms_2 <- bind_rows(tibble(obs.times = c(t1_times,t2_times), arm = "pl", n1_cum_per = pl_2[,1]),
                   tibble(obs.times = c(t1_times,t2_times), arm = "tx", n1_cum_per = tx_2[,1]))
 
-effects <- tibble(obs.times = t1_times,
-                  arr = arr[,1], rr = rr[,1], or = or[,1]) %>%
+effects <- tibble(obs.times = c(t1_times, t2_times),
+                  arr = arr_2[,1], rr = rr_2[,1], or = or_2[,1]) %>%
   filter(obs.times !=0)
 
 ## Create plots
 plot1 <- ggplot (arms_2 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
   geom_smooth(se = FALSE) +
   scale_x_continuous("Time (days)") +
-  scale_y_continuous ("Cumulative incidence") 
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
 plot1
-
-arms$n1_cum_per[which(arms$obs.times==548)]
-arms_2$n1_cum_per[which(arms_2$obs.times==548)]
 
 plot2 <- ggplot (effects, aes(x = obs.times, y = rr)) +
   geom_smooth(se = FALSE) +
