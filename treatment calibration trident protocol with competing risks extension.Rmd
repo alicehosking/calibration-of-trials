@@ -354,8 +354,8 @@ $$ ln(SE)= \frac{1}{\sqrt{m_s}}$$.
 We can then simulate a normally distributed sample for the event rates.
 
 ```{r simple event rates}
-## Set number of samples with nrep for use throughout.
-nrep<-10000
+## Set number of samples with nrep for use throughout. NEW 1000 reps
+nrep<-1000
 
 #event rate at t1 and t2
 rate_est <- strata_vars$strata_n_events_t2/ strata_vars$strata_fu_t2*365.35*100
@@ -929,7 +929,7 @@ Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate t
 
 ```{r simple event rates comp}
 ## Set number of samples with nrep for use throughout.
-nrep<-10000
+nrep<-1000
 
 #event rate at t2
 rate_comp_est <- strata_vars$strata_comp_n_events_t2/ strata_vars$strata_comp_fu_t2*365.35*100
@@ -998,6 +998,7 @@ At t1, the cumulative risks are as follows.
 # Function to create dataframe with samples for arm, Welton version
 
 MakeCumulative <- function (arm, rate.main, rate.compete, times){
+  
   lamda_new <- matrix(NA, ncol = 2, nrow = length(times))
   p_new <- matrix(NA, ncol = 3, nrow = length(times))
   cumslam_new <- NA
@@ -1024,12 +1025,12 @@ t1_times <- seq(0, 548, 1)
 # Placebo arm
 pl <- MakeCumulative("u",
                      rate.main=(mean(lambda_u_sim[1:length(strata) * nrep])),
-                     rate.compete= sum(exp(log_lambda_u_comp[1:length(strata)*nrep,2]))/(length(strata)*nrep), 
+                     rate.compete= sum(exp(log_lambda_u_comp[1:(length(strata)*nrep),2]))/(length(strata)*nrep), 
                      times=t1_times)
 # Treatment arm
 tx <- MakeCumulative (arm = "rx",
                       rate.main = mean(lambda_t1_sim[1:length(strata) * nrep]),
-                      rate.compete = sum(exp(log_lambda_u_comp[1:length(strata) * nrep,2]))/(length(strata) * nrep), t1_times)
+                      rate.compete = sum(exp(log_lambda_u_comp[1:(length(strata)*nrep),2]))/(length(strata)*nrep), t1_times)
 
 ## Calculate comparisons
 arr = pl - tx
@@ -1052,10 +1053,158 @@ plot1 <- ggplot (arms , aes(x = obs.times, y = n1_cum_per, colour = arm)) +
   theme_bw()
 plot1
 
+arms2 <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl[,2]),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx[,2]))
 
+plot2<- ggplot (arms2 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
+plot2
 
+arms3 <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl[,3]),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx[,3]))
+
+plot3<- ggplot (arms3 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative survival") +
+  theme_bw()
+plot3
 ```
 
+```{r arr with sim cis}
+# This is adapted from David McAllister's code. He defines rate in each arm, and the competing risk rate.
+# rate.main - lambda_t1_sim and lambda_t2_sim for treated; lambda_u_sim for untreated
+# rate.compete = exp(log_lambda_u_comp_sim)
+# Function to create dataframe with samples for arm, Welton version
+
+MakeCumulative <- function (arm, rate.main, rate.compete, times){
+  
+  lamda_new <- matrix(NA, ncol = 2, nrow = length(times)*nrep)
+  p_new <- matrix(NA, ncol = 3, nrow = length(times)*nrep)
+  cumslam_new <- NA
+  
+  lamda_new [,1] <- rep(rate.main, length(times))
+  lamda_new [,2] <- rep(rate.compete$V1, length(times))
+  
+  slam_new <- rowSums(lamda_new[,1:2]) 
+  cumslam_new <- 1 - exp(-slam_new*rep(times, each=nrep))
+  
+  # Calculate cumulative incidence for each outcome
+  for (j in 1:2){
+    p_new[,j] <- lamda_new[,j] * cumslam_new /slam_new 
+  }# end of loop through outcomes
+  p_new[,3] <- 1 - rowSums(p_new[,1:2])
+  p_new
+ 
+
+}
+
+
+# reorganise: for each output, will need mean of each day, and ci of each day
+
+get_CIs <- function(x, times){
+  
+  arr<- setDT(as.data.frame(x))
+  arr_new <- data.frame(matrix(nrow=length(times), ncol=9))
+  index<- rep(times, each=nrep)
+  arr[, index:=rep(times, each=nrep)]
+
+#Group by index then work out quantiles. Use data.table
+  arr[,mean_main:= mean(V1), by=index][,l_ci_main:=quantile(V1, probs=0.025),by=index][, u_ci_main:=quantile(V1, probs=0.975), by=index]
+  arr[,mean_comp:= mean(V2), by=index][,l_ci_comp:=quantile(V2, probs=0.025),by=index][, u_ci_comp:=quantile(V2, probs=0.975), by=index]
+  arr[,mean_both:= mean(V3), by=index][,l_ci_both:=quantile(V3, probs=0.025),by=index][, u_ci_both:=quantile(V3, probs=0.975), by=index]
+
+  #select only relevant columns and every ntimes row
+   arr_new <- arr[seq(1, nrow(arr),nrep), ]
+
+  arr_new
+  
+}
+  
+
+t1_times <- seq(0, 548, 1)
+
+#lambda for each stratum is in a vector nrep *length(strata) long.
+#output is number of days times number of reps long...
+# Placebo arm
+pl <- MakeCumulative("u",
+                     rate.main=lambda_u_sim[1:nrep],
+                     rate.compete=exp(log_lambda_u_comp[1:nrep,2]), 
+                     times=t1_times)
+
+# Treatment arm
+tx <- MakeCumulative (arm = "rx",
+                      rate.main = lambda_t1_sim[1:nrep],
+                      rate.compete = (exp(log_lambda_u_comp[1:nrep,2])), t1_times)
+
+pl_cis<- get_CIs(pl, t1_times)
+tx_cis<- get_CIs(tx, t1_times)
+
+## Calculate comparisons
+arr = pl - tx
+rr = tx/pl
+or = (tx/(1-tx)) / (pl/(1-pl))
+
+# reorganise: need mean of each day, and ci of each day
+
+
+arms <- bind_rows(tibble(obs.times = rep(t1_times, each=nrep), arm = "pl", n1_cum_per = pl[,1]),
+                  tibble(obs.times = rep(t1_times, each=nrep), arm = "tx", n1_cum_per = tx[,1]))
+
+
+## Create plots
+plot1 <- ggplot (arms , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = TRUE, method="lm") +
+  #geom_point()+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
+plot1
+
+arms_x1 <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl_cis$mean_main, l_ci = pl_cis$l_ci_main, u_ci=pl_cis$u_ci_main),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx_cis$mean_main, l_ci = tx_cis$l_ci_main, u_ci=tx_cis$u_ci_main))
+
+
+## Create plots
+plot1_1 <- ggplot (arms_x1 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(aes(x = obs.times, y = n1_cum_per, colour = arm),se = FALSE) +
+  geom_line(aes(x = obs.times, y = u_ci, colour = arm))+
+  geom_line(aes(x = obs.times, y = l_ci, colour = arm))+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
+plot1_1
+
+ggplot(arms_x1 , aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
+
+arms2 <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl[,2]),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx[,2]))
+
+plot2<- ggplot (arms2 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()
+plot2
+
+arms3 <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl[,3]),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx[,3]))
+
+plot3<- ggplot (arms3 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative survival") +
+  theme_bw()
+plot3
+```
 #### Time-varying hazard ratio
 
 I have amended the code to account for two distinct time periods, with different rates of outcome event.
@@ -1144,4 +1293,16 @@ plot3 <- ggplot (effects , aes(x = obs.times, y = or)) +
   scale_y_continuous ("Odds ratio for events to time (t)")
 plot3
 
+```
+
+```{r table of ARR}
+#create nice table of arr
+setDT(arms_2)
+arms_3 <- arms_2[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
+abs_rates <- dcast(arms_3, obs.times ~ arm, value.var="n1_cum_per")
+abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)][, "Absolute difference":= pl-tx]
+colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)", "Absolute difference")
+ft<- flextable(abs_rates)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+ft
 ```
