@@ -1,0 +1,1493 @@
+---
+title: "Statistical analysis plan for calibration of the Trident trial to a population-based
+  cohort in Scotland."
+author: "Dr Alice Hosking, Prof Rustam Al-Shahi Salman, Prof William Whiteley, Prof David McAllister"
+email: "alice.hosking@ed.ac.uk"
+date: "`r Sys.Date()`"
+output:
+  # word_document:
+  #   toc: true
+  html_document:
+    toc: true
+    number_sections: true
+    theme: united
+bibliography: calibration.bib
+csl: "american-medical-association-10th-edition.csl"
+
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(data.table)
+library(flexsurv)
+library(survival)
+library(SurvRegCensCov)
+library(muhaz)
+library(ggsurvfit)
+library(survminer)
+library(rmeta)
+library(flextable)
+
+set.seed(42)
+
+knitr::opts_chunk$set(message = F, warning=F, echo=F)
+
+set_flextable_defaults(
+  font.size = 10, theme_fun = theme_vanilla,
+  padding = 6,
+  background.color = "#FFFFFF")
+```
+
+## Introduction
+
+### Purpose and scope of this document
+
+This statistical analysis plan details the analyses planned for calibration of the TRIDENT trial to a population-based inception cohort, including a worked-through example with mock values of hazard ratios.
+
+### Study overview
+
+Intracerebral haemorrhage causes around a third of strokes worldwide but half the death and disability after stroke.[@Feigin2024] Those with ICH have an estimated 2% annual risk of recurrent ICH and 2% annual risk of ischaemic stroke.[@Putri2026] A single-pill combination of three blood pressure lowering medicines at half standard dose (telmisartan 20 mg, amlodipine 2.5 mg, and indapamide 1.25 mg) in addition to standard care could reduce the risk of  recurrent stroke after ICH. TRIDENT was an international, double-blind, placebo-controlled, randomised trial in adults with ICH and mild-moderate hypertension (systolic BP: 130–160 mmHg). The primary outcome was any stroke; secondary outcomes include recurrent ICH, cardiovascular events, and safety.[@Chalmers2026]
+
+However, TRIDENT, as with any other trial, might be subject to selection bias, leading to low representativeness of the general population (i.e., lack of external validity).[@Westreich2019; @Bareinboim2016;@Rothwell2005] In particular, women, older people, and those with frailty and multimorbidity, are likely underrepresented in this trial.[@Sheppard2020; @Sardar2014; @Carcel2021] Furthermore, the trial was conducted in countries with different demography to the UK.The mean age of people with incident ICH in two pooled cohorts from Oxfordshire, England and Lothian, Scotland was 74.7 years, with 53% of the cohort being female.@Li2021 TRIDENT only includes those who survived long enough to be enrolled in the trial; nevertheless, the mean age was 58 years in both treatment and placebo arm, and women comprised 33% and 34% of each arm.
+
+In recent years statistical trial calibration (or transportation), has been developed to deal with this issue.[@Cole2010;@Manke-Reimers2025] Calibration refers to the methods used to extend the results of a clinical trial to a different population than the one originally studied. Rather than using observational studies to assess the same clinical question, calibration keeps the randomisation intact and therefore does not introduce confounding bias. This process provides a quantitative estimate of the external validity of trial findings.
+
+
+### Objectives
+
+The aim of this study is to calibrate the effect of a low-dose triple pill antihypertensive medication in people with ICH from the TRIDENT trial to a population-based cohort in Lothian, Scotland.
+
+The outcomes will be:
+
+* A measure of relative effect, the risk ratio, calibrated to the Lothian population.
+* A measure of absolute effect, the number needed to treat, calibrated to the Lothian population.
+* Extension: a measure of absolute effect, the absolute risk reduction in the presence of competing risk of death, calibrated to the Lothian population.
+
+
+## Study design, population and outcomes
+
+### Study design
+
+This study will use stratified data from the TRIDENT trial (the trial population) and data from the LATCH study (the target population), a prospective, population-based inception cohort study of people with ICH in NHS Lothian. 
+
+The TRIDENT trial result showed no difference in the primary outcome (recurrent stroke) until approximately 18 months, from which point the cumulative incidence function for the primary outcome appeared to diverge between control and treatment arms. We will therefore calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). 
+
+There are various methods to calibrate trials. Regression-based approaches and inverse probability weighting require individual patient data.[@Wei2023] Alternatively, one can stratify a trial and target population by key factors, and extract hazard ratios from the trial for each stratum, obviating the need for individual participant data access. We propose to use this method to calibrate TRIDENT to the LATCH population. 
+
+We will calibrate based on age and sex, two factors by which the TRIDENT population differs to the UK population with ICH. Age is strongly related to other characteristics such as multimorbidity and frailty which are commonly under-represented in clinical trials, but were not directly measured in TRIDENT.@Barnett2012
+
+In summary, the method is:
+
+* Inspect the distribution of ages in TRIDENT and LATCH to choose stratification ages with sufficient overlap between LATCH and TRIDENT.
+* Split TRIDENT into strata of age and sex (eg <65 years female, <65 years male, over 65 years female,  over 65 years male)
+* Obtain hazard ratios and their 95% confidence intervals for TRIDENT for each stratum at 18 months and from 18 months to end of trial (assumed to be 6 years for this document). 
+* Split LATCH into the same age- and sex-based strata. For each strata, fit a survival model to obtain rates and confidence intervals of the primary outcome at $t_1$ and $t_2$.
+* Use these rates, and the hazard ratios from TRIDENT, to model absolute rates in untreated and treated in each stratum.
+* The relative risk for each stratum is then (risk untreated/risk treated). We combine relative risks as a weighted mean, with the weights the number of people in each stratum in LATCH.
+
+![Figure 1: Flowchart schematic of trial calibration method using two strata.](/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/calibration-of-trials/Trial calibration flow chart.png){#id .class width=90%}
+
+
+### Populations
+
+#### Trial population
+
+The trial population is the 1670 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days. The primary outcome was time to first recurrent stroke.
+
+TRIDENT Inclusion Criteria
+
+* Adults (≥18 years) with a history of primary ICH that was confirmed by imaging.
+* Clinically stable, as judged by investigator.
+* An average of two resting systolic blood pressure (SBP) levels measured 5 minutes apart in the range 130-160 mmHg recorded in a seated position. Patients with higher SBP could still be included if it was considered by the site investigator that their management would be consistent with local standards of clinical practice.
+* Geographical proximity to the recruiting hospital and/or follow-up medical clinic site to allow ready access for in-person assessments during follow-up.
+* No clear contraindication or indication to any of the individual components of the Investigational Medical Product (IMP).
+* Provision of written informed consent
+
+TRIDENT Exclusion Criteria
+
+* Taking an angiotensin converting enzyme inhibitor (ACE-I) that could not be switched to any of the following alternatives: an angiotensin receptor blocker (ARB) (e.g. telmisartan 20 or 40 mg), a calcium channel blocker (CCB) (e.g. amlodipine 2.5 or 5 mg), or a thiazide (TZ)-like diuretic (e.g. indapamide 1.25 mg); an equivalent class (ARB, CCB or TZ); or a beta-blocker (BB).
+* Contraindication to any component of the IMP in the context of currently prescribed BP lowering treatment.
+* Unable to complete the study procedures and/or follow-up.
+
+#### Target population
+
+We aim to calibrate to a target population that reflects who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines. 
+
+The Lothian Audit of Intracerebral Haemorrhage (LATCH) was a population-based cohort study that ran between 1st June 2010 and 31st May 2013, and 1st November 2018 and 31st October 2021, with the aim of near-complete ascertainment of ICH in the Lothian Health board region of Scotland in residents aged ≥16 years. Approval for LATCH was granted by the Caldicott guardian of NHS Lothian. The LATCH audit has been described previously.[@Samarasekera2015] Prospective sources included a trust-wide network of physicians, neurologists, neurosurgeons, radiologists, pathologists, specialist nurses and audit personnel; and daily neuroradiology meetings and review of all computed tomographic (CT) head scans. Retrospective sources were electronic patient notes, International Classification of Diseases 10th Revision (ICD-10) coded hospital discharge records, the Scottish Stroke Care Audit,[@Turner2015] and death records at the Office of the Procurator Fiscal.  
+
+The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presumed due to microvascular cause.  We aim to identify those in LATCH who might be prescribed the TRIDENT single pill, if it were recommended in clinical treatment guidelines, based on the TRIDENT inclusion criteria and prescribing practice:
+
+*	Antihypertensive treatment is intended for secondary prevention in people who survive the initial ICH. In the LATCH cohort, a 40 percent of people die within 30 days of ICH; beyond 30 days, the death rate reduces, and we pragmatically assume those alive at 30 days after ICH are clinically stable; there are 525 people alive at 30 days. 
+*	We did not have measurement of post-ICH blood pressure for all of LATCH. Almost everyone with intracerebral haemorrhage is hypertensive; we expect very few to have blood pressure . If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure.
+*	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
+
+
+#### Assumptions and limitations
+
+* We assume that the hazard ratios for each stratum reflect real variation in hazard by age and sex, rather than random variation around the mean.
+* The trial and target populations are partially overlapping, as the Royal Infirmary of Edinburgh recruited 17 people with ICH for TRIDENT. Therefore approximately 9 people in the target population (1.5%) are on treatment. We cannot identify those treated, but assume this will make a negligible difference to the untreated rate.
+* There were limitations to the maximum doses of additional blood pressure treatment for those in both treatment and placebo arms of TRIDENT. People in LATCH may have been prescribed doses in excess of this, but we do not have data on discharge medications for the whole LATCH population, so cannot exclude these people.
+
+
+## Analysis example
+
+We now show the method for calibration through a worked example using real LATCH data, and mock hazard ratios (and their 95% confidence intervals) from TRIDENT. We create age/sex four strata for this example.
+
+### Time period definitions
+
+We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
+
+### Data tidying {.tabset}
+
+First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
+
+The tables below show the number of events in LATCH for different strata divisions. For the subsequent example, we use four strata.
+
+```{r read in data, echo=FALSE, message=FALSE}
+latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 30 days.csv")
+setDT(latch_for_tridentx)
+latch_for_trident<- latch_for_tridentx[,c("survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
+#some dates are stored as excel formatted dates. 
+#for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
+latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
+
+#time to first event
+latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,i_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,i_date,  units="days")]
+
+# if no first event, time to end of death/ end study
+latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
+
+#censor status and survival time at 1.5 years, 4.5 years and all time
+latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
+
+# here we also define the survival times for competing risk of death, which we use in the extension below
+#create variable to say if has competing event
+#calculate time to competing event
+#provide interim count at t1
+latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ][, time_to_comp_event := fifelse(comp_event_n==1, difftime(date_of_death_trid, i_date, units="days"),difftime("2022-12-31", i_date, units="days"))][, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+
+strata<- list(
+latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
+latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>64&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>64& Gender_t=="Female"]
+  
+)
+
+strata_n<- c()
+strata_n_events_t1<- c()
+strata_n_events_t2<- c()
+strata_fu_t1 <- c()
+strata_fu_t2<- c()
+strata_comp_n_events_t1 <- c()
+strata_comp_n_events_t2 <- c()
+strata_comp_fu_t1<- c()
+strata_comp_fu_t2 <- c()
+
+for(i in 1:length(strata)){
+  strata_n[i] <-length(strata[[i]]$i_date) 
+  strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
+  strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
+  strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
+  strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
+  
+  strata_comp_n_events_t1[i]<- sum(strata[[i]]$comp_event_n_t1)
+  strata_comp_n_events_t2[i]<- sum(strata[[i]]$comp_event_n_t2)
+  strata_comp_fu_t1[i] <- sum(strata[[i]]$time_to_comp_event_t1)
+  strata_comp_fu_t2[i]<- sum(strata[[i]]$time_to_comp_event_t2)
+  
+
+}
+strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2, strata_comp_n_events_t1=strata_comp_n_events_t1, strata_comp_n_events_t2=strata_comp_n_events_t2, strata_comp_fu_t1=strata_comp_fu_t1, strata_comp_fu_t2=strata_comp_fu_t2)
+saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
+
+#alternative strata n
+
+strata_x<- list(
+latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
+latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
+latch_65_75_m<- latch_for_trident[age_index>64&age_index<75&Gender_t=="Male"],
+latch_65_75_f<- latch_for_trident[age_index>64&age_index<75& Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>74&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>74& Gender_t=="Female"]
+  
+)
+
+strata_x_n<- c()
+strata_x_n_events_t1<- c()
+strata_x_n_events_t2<- c()
+strata_x_fu_t1 <- c()
+strata_x_fu_t2<- c()
+strata_x_comp_n_events_t1 <- c()
+strata_x_comp_n_events_t2 <- c()
+strata_x_comp_fu_t1<- c()
+strata_x_comp_fu_t2 <- c()
+
+for(i in 1:length(strata_x)){
+  strata_x_n[i] <-length(strata_x[[i]]$i_date) 
+  strata_x_n_events_t1[i]<- sum(strata_x[[i]]$censor_all_str_t1)
+  strata_x_n_events_t2[i]<- sum(strata_x[[i]]$censor_all_str_t2)
+  strata_x_fu_t1[i] <- sum(strata_x[[i]]$survival_stroke_t1)
+  strata_x_fu_t2[i]<- sum(strata_x[[i]]$survival_stroke_t2)
+  
+  strata_x_comp_n_events_t1[i]<- sum(strata_x[[i]]$comp_event_n_t1)
+  strata_x_comp_n_events_t2[i]<- sum(strata_x[[i]]$comp_event_n_t2)
+  strata_x_comp_fu_t1[i] <- sum(strata_x[[i]]$time_to_comp_event_t1)
+  strata_x_comp_fu_t2[i]<- sum(strata_x[[i]]$time_to_comp_event_t2)
+  
+
+}
+strata_x_vars<- list(strata_x_n=strata_x_n, strata_x_n_events_t1=strata_x_n_events_t1, strata_x_n_events_t2=strata_x_n_events_t2, strata_x_fu_t1=strata_x_fu_t1, strata_x_fu_t2=strata_x_fu_t2, strata_x_comp_n_events_t1=strata_x_comp_n_events_t1, strata_x_comp_n_events_t2=strata_x_comp_n_events_t2, strata_x_comp_fu_t1=strata_x_comp_fu_t1, strata_x_comp_fu_t2=strata_x_comp_fu_t2)
+
+
+#alternative strata n 2
+
+strata_y<- list(
+latch_under_60_m<- latch_for_trident[age_index<60&Gender_t=="Male"],
+latch_under_60_f<- latch_for_trident[age_index<60&Gender_t=="Female"],
+latch_60_70_m<- latch_for_trident[age_index>59&age_index<70&Gender_t=="Male"],
+latch_60_70_f<- latch_for_trident[age_index>59&age_index<70& Gender_t=="Female"],
+latch_70_80_m<- latch_for_trident[age_index>69&age_index<80&Gender_t=="Male"],
+latch_70_80_f<- latch_for_trident[age_index>69&age_index<80& Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>79&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>79& Gender_t=="Female"]
+  
+)
+
+strata_y_n<- c()
+strata_y_n_events_t1<- c()
+strata_y_n_events_t2<- c()
+strata_y_fu_t1 <- c()
+strata_y_fu_t2<- c()
+strata_y_comp_n_events_t1 <- c()
+strata_y_comp_n_events_t2 <- c()
+strata_y_comp_fu_t1<- c()
+strata_y_comp_fu_t2 <- c()
+
+for(i in 1:length(strata_y)){
+  strata_y_n[i] <-length(strata_y[[i]]$i_date) 
+  strata_y_n_events_t1[i]<- sum(strata_y[[i]]$censor_all_str_t1)
+  strata_y_n_events_t2[i]<- sum(strata_y[[i]]$censor_all_str_t2)
+  strata_y_fu_t1[i] <- sum(strata_y[[i]]$survival_stroke_t1)
+  strata_y_fu_t2[i]<- sum(strata_y[[i]]$survival_stroke_t2)
+  
+  strata_y_comp_n_events_t1[i]<- sum(strata_y[[i]]$comp_event_n_t1)
+  strata_y_comp_n_events_t2[i]<- sum(strata_y[[i]]$comp_event_n_t2)
+  strata_y_comp_fu_t1[i] <- sum(strata_y[[i]]$time_to_comp_event_t1)
+  strata_y_comp_fu_t2[i]<- sum(strata_y[[i]]$time_to_comp_event_t2)
+  
+
+}
+strata_y_vars<- list(strata_y_n=strata_y_n, strata_y_n_events_t1=strata_y_n_events_t1, strata_y_n_events_t2=strata_y_n_events_t2, strata_y_fu_t1=strata_y_fu_t1, strata_y_fu_t2=strata_y_fu_t2, strata_y_comp_n_events_t1=strata_y_comp_n_events_t1, strata_y_comp_n_events_t2=strata_y_comp_n_events_t2, strata_y_comp_fu_t1=strata_y_comp_fu_t1, strata_y_comp_fu_t2=strata_y_comp_fu_t2)
+```
+
+```{r tables of n events for different strata, results='asis'}
+
+strata_four <- do.call(cbind.data.frame, strata_vars)
+setDT(strata_four)
+strata_four <-strata_four[, strata_names:=c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")][, c("strata_names", "strata_n", "strata_n_events_t1", "strata_n_events_t2","strata_comp_n_events_t1", "strata_comp_n_events_t2")]
+
+colnames(strata_four)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+strata_six <- do.call(cbind.data.frame, strata_x_vars)
+setDT(strata_six)
+strata_six <- strata_six[, strata_names:=c("Male <65 years", "Female <65 years", "Male 65 to 75 years","Female 65 to 75 years", "Male 75 years and over", "Female 75 years and over")][, c("strata_names", "strata_x_n", "strata_x_n_events_t1", "strata_x_n_events_t2","strata_x_comp_n_events_t1", "strata_x_comp_n_events_t2")]
+colnames(strata_six)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+strata_eight <- do.call(cbind.data.frame, strata_y_vars)
+setDT(strata_eight)
+strata_eight <- strata_eight[, strata_names:=c("Male <60 years", "Female <60 years", "Male 60 to 70 years","Female 60 to 70 years","Male 70 to 80 years","Female 70 to 80 years", "Male 75 years and over", "Female 75 years and over")][, c("strata_names", "strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
+colnames(strata_eight)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+ft <- flextable(strata_four)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Four strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+
+ft <- flextable(strata_six)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Six strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+
+ft <- flextable(strata_eight)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Eight strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+```
+
+
+
+### Parametric survival model for LATCH {.tabset}
+
+We model the event rate (stroke recurrence) in LATCH for each stratum. We use a parametric model. 
+
+First inspect the Kaplan Meier curve. This looks approximately exponential. 
+
+We model the event rate with a parametric survival model to select the most appropriate distribution, using the flexsurv package in R. There are various choices for the model distribution (exponential, gamma, Weibull etc). We compare the hazard and survival plots for each distribution to a non-parametric model (the kernel, in black), and the AIC for each distribution.
+
+The exponential model allows much simpler calculations other models. The AICs are all similar (gamma is the lowest). Although other models have marginally better fits, the exponential model fit is acceptable, and for analytical simplicity, we choose an exponential model.
+
+
+#### Kaplan Meier curve
+
+
+```{r KM for whole population, warnings=FALSE, message=FALSE, fig.width=6,fig.height=4}
+
+s1<- survfit(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident)
+km_plot<- survminer::ggsurvplot(s1, ylim=c(0.6, 1), xlim=c(0, 6*365.25), break.x.by = 365.25, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+```
+
+
+
+```{r choose parametric model for event rate}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(as.difftime(latch_for_trident$surv_time_all_stroke, units="days"), latch_for_trident$censor_status_all_str_all_time)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$surv_time_all_stroke)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+#### Plot of survivals of various distributions
+
+```{r survival plots,fig.width=8,fig.height=4}
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+```
+
+#### Plot of hazards of various distributions
+```{r hazard plot,fig.width=8,fig.height=4}
+
+ggplot(haz, aes(x = time, y = est, col = method, linetype = method)) +
+  geom_line() +
+  xlab("Days") + ylab("Hazard") + 
+  scale_colour_manual(name = "", 
+                      values = c("black", rainbow(n_dists))) +
+  scale_linetype_manual(name = "",
+                        values = c(1, rep_len(2:6, n_dists)))+
+  xlim(0, 365.25*6)+
+  xlab("Years") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6), limits = c(0,365.35*6))
+
+```
+
+
+
+#### Comparison of AIC
+
+```{r aic}
+
+parametric_haz <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+fit_aic<- c()
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  fit_aic<- c(fit_aic, fit$AIC)
+}
+
+#add in gompertz separately
+fit_gompertz <- flexsurvreg(Surv(survival_stroke_t2, censor_all_str_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$time_to_all_stroke)))) 
+fit_aic<-  c(fit_aic, fit_gompertz$AIC)
+#join all together
+parametric_aic<- as.data.frame(cbind(dists_long, round(fit_aic,2)))
+colnames(parametric_aic)<- c("Model", "AIC")
+ft<- flextable(parametric_aic)
+ft <- width(ft,width=dim_pretty(ft)$widths)
+ft
+
+```
+
+
+### Event rates in LATCH {.tabset}
+
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample.@Greenland2004 Throughout, we simulate with 10,000 samples. We plot the sample and show the event rates for each stratum in a table.
+
+The event rate is defined as:
+
+$$\lambda_u=\text{rate in untreated}$$
+We define $n_s$ as the number of people in each stratum, and $m_s$ as the number of events per stratum.
+
+$$\lambda_u=\frac{m_s}{\text{Total follow up time for stratum}}$$.
+
+As we are assuming an exponential distribution, we can calculate the standard error directly:
+
+$$ ln(SE)= \frac{1}{\sqrt{m_s}}$$.
+
+We can then simulate a normally distributed sample for the event rates.
+
+```{r simple event rates}
+## Set number of samples with nrep for use throughout. NEW 1000 reps
+nrep<-1000
+
+#event rate at t1 and t2
+rate_est <- strata_vars$strata_n_events_t2/ strata_vars$strata_fu_t2*365.35*100
+log_rate_est <- log(strata_vars$strata_n_events_t2/ strata_vars$strata_fu_t2)
+
+# Calculate SE of the log-rate for untreated
+log_rate_se <- 1 / sqrt(strata_vars$strata_n_events_t2)
+saveRDS(rate_est, "RDS files/LATCH rates, strata above and below 65 years.rds")
+saveRDS(log_rate_est, "RDS files/LATCH log rates, strata above and below 65 years.rds")
+saveRDS(log_rate_se, "RDS files/LATCH se log rates, strata above and below 65 years.rds")
+
+
+## obtain and plot samples from rate in untreated
+untreated_rates<- as.data.frame(cbind(strata_vars$strata_n, rate_est,log_rate_est, log_rate_se))
+setDT(untreated_rates)
+log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
+
+#rename I column to the strata names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+log_lambda_u$I <- factor(log_lambda_u$I, levels=seq(1, length(strata)), labels=strata)
+
+#calculate confidence intervals for visualisation
+untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
+saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and below 65 years.rds")
+
+#round all the numbers
+untreated_rates_round<- round(untreated_rates,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates_round[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
+
+```
+
+#### Table of event rates for each stratum
+
+```{r table of rates}
+#print table of rates
+untreated_rates_round<- as.data.frame(untreated_rates_round)
+rownames(untreated_rates_round)<- strata
+
+
+colnames(untreated_rates_round) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
+
+
+ft_rates<- flextable(untreated_rates_round)
+
+ft_rates2 <- width(ft_rates,width=dim_pretty(ft_rates)$widths)
+ft_rates2
+```
+
+
+#### Plot of log event rates for each stratum
+```{r plot of event rates log,fig.width=6,fig.height=4}
+#plot to confirm normality
+ggplot(data=log_lambda_u)+
+  geom_histogram(aes(x=V1), fill="#FCCDE5")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated log rates for strata 1-4")+ 
+  xlab("")
+```
+
+
+### Hazard ratios for each stratum {.tabset}
+
+For this mock-up we estimate hazard ratios for each time period (based roughly on published subgroup analysis). For the real analysis, the strata may be different; this is for demonstration only. We assume HR are independent; and make a guess at the HR for young men. We then split into two time periods: up to 18 months, where the HR are approximately 1; and beyond 18 months. We simulate 10,000 samples assuming a log normal distribution, for t1 and t2.
+
+
+```{r mock hazard ratios - whole trial}
+# overall HR. These come from the subgroup analysis of the trial
+#create vector for each with HR, LCI, UCI
+male_hr<- c(0.71,0.42,1.15)
+female_hr<- c(0.44,0.21,0.94)
+f_m_interaction <- female_hr/male_hr
+
+under_60_hr<- c(0.76,0.44,1.33)
+over_60_hr<- c(0.61,0.41,0.92)
+old_young_interaction<- over_60_hr/under_60_hr
+
+#assume independence; can multiply to get HR for subgroups
+#need to make assumption on HR for young men
+
+hrs_t2<- as.data.frame(rbind(
+hr_young_men<- c(0.3, 0.26, 0.7),
+hr_young_women <- hr_young_men*f_m_interaction,
+hr_old_men<- hr_young_men*old_young_interaction,
+hr_old_women <- hr_young_men*f_m_interaction*old_young_interaction
+))
+# we need to split into two time strata; the first 18 months and beyond 18 months. For the first 18 months, the HR between treatment and control overall is approximately 1; beyond this the HR widens. for the first 18 months, recentre HR and CI to 1ish. For beyond 18 months, use existing HR
+hrs_t1<- as.data.frame(rbind(
+hr_young_men_t1<- hr_young_men+0.42,
+hr_young_women_t1 <- hr_young_women+0.62,
+hr_old_men_t1 <- hr_old_men+0.58,
+hr_old_women_t1 <- hr_old_women + 0.72
+))
+
+colnames(hrs_t1) <- c("HR", "l_ci", "u_ci")
+rownames(hrs_t1) <- c(" Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+colnames(hrs_t2) <- c("HR", "l_ci", "u_ci")
+rownames(hrs_t2) <- c(" Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+```
+
+#### Hazard ratio for period $\tau_1$
+```{r hr for t1}
+
+ft_hr_t1<- flextable(round(hrs_t1,2))
+ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
+ft_hr_t1_a
+
+```
+
+#### Hazard ratio for period $\tau_2$
+
+```{r hr for t2}
+ft_hr_t2<- flextable(round(hrs_t2,2))
+ft_hr_t2<- set_header_labels(ft_hr_t2, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t2_a <- width(ft_hr_t2,width=dim_pretty(ft_hr_t2)$widths)
+ft_hr_t2_a
+```
+
+#### Histogram of simulated log hazard ratios for strata 1-4, $\tau_1$
+
+```{r simulate n hrs, warnings=F,fig.width=6,fig.height=4}
+#obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
+setDT(hrs_t1)
+setDT(hrs_t2)
+hrs_t1[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+
+#simulate log hr for nrep samples.
+#create simulated hr for all strata
+log_hrs_t1_per_strata <- hrs_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
+
+#rename I column to the strata names
+log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=seq(1, length(strata)), labels=strata)
+
+
+#plot to confirm normality
+ggplot(data=log_hrs_t1_per_strata)+
+  geom_histogram(aes(x=V1), fill="#FCCDE5")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated log hazard ratios for strata 1-4, T1")+ 
+  xlab("Log of hazard ratio")
+```
+
+#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$
+
+```{r hist hr t1 exponentiated,fig.width=6,fig.height=4}
+ggplot(data=log_hrs_t1_per_strata)+
+  geom_histogram(aes(x=exp(V1)), fill="#FCCDE5")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated hazard ratios for strata 1-4, T1")+ 
+  xlab("Hazard ratio")
+```
+
+#### Histogram of simulated log hazard ratios for strata 1-4, $\tau_2$
+
+```{r t2 hr hists,fig.width=6,fig.height=4}
+#repeat for t2 hazard ratios
+#create simulated hr for all strata
+log_hrs_t2_per_strata <- hrs_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
+
+#rename I column to the strata names
+log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=seq(1, length(strata)), labels=strata)
+
+#plot to confirm normality
+ggplot(data=log_hrs_t2_per_strata)+
+  geom_histogram(aes(x=V1), fill="#80B1D3")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated log hazard ratios for strata 1-4, T2")+ 
+  xlab("Log of hazard ratio")
+```
+
+#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ 
+
+```{r t2 hr exponentiated,fig.width=6,fig.height=4}
+ggplot(data=log_hrs_t2_per_strata)+
+  geom_histogram(aes(x=exp(V1)), fill="#80B1D3")+
+  theme_bw()+
+  facet_wrap(vars(I))+
+  labs(title="Simulated hazard ratios for strata 1-4, T2")+ 
+  xlab("Hazard ratio")
+```
+
+### Calibrated rates and CIs for each stratum {.tabset}
+
+For each age/sex stratum and for each time period, we combine the rate in the untreated and the hazard ratio to obtain a risk ratio.
+
+Recall:
+
+$$\lambda_u=\text{rate in untreated}$$
+
+
+Multiply untreated rates by hazard ratios ($HR$) to get treated event rates in each time period:
+$$\lambda_{treat1} = \lambda_u \times HR_1$$
+$$\lambda_{treat2} = \lambda_u \times HR_2$$
+
+We then transform these to risks for each stratum:
+$$R_{untreated} = 1 - exp{(-\lambda_u(\tau_1+\tau_2)})$$ 
+
+and 
+
+$$R_{treated} = 1 - exp{(-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)})$$
+
+The risk ratio at the end of the trial for each stratum is then:
+
+$$ RR_S= \frac{R_{treated}}{R_{untreated}}$$
+
+We have already simulated 10,000 samples for each hazard ratio and event rate, to generate 10,000 risk ratios.
+
+```{r risks treated and untreated 2}
+#set t1 and t2 in days
+t1<-548
+t2<- 4.5*365.25
+
+#lambda from parametric model above
+#lambda_u <- exp(z_lambda) 
+log_lambda_u_sim<- log_lambda_u$V1
+
+#for rate in treated, log lambda_t = log lambda_u + log hr
+log_lambda_t1_sim <- log_lambda_u_sim+log_hrs_t1_per_strata$V1
+log_lambda_t2_sim <- log_lambda_u_sim+log_hrs_t2_per_strata$V1
+
+#exponentiate to get rates
+lambda_u_sim <- exp(log_lambda_u_sim)
+lambda_t1_sim<- exp(log_lambda_t1_sim)
+lambda_t2_sim<- exp(log_lambda_t2_sim)
+
+#transform to risks
+risk_u1 <- 1-exp(-lambda_u_sim*t1)
+risk_t1 <- 1-exp(-lambda_t1_sim*t1)
+risk_u2 <- 1-exp(-lambda_u_sim*(t1+t2))
+risk_t2 <- 1-exp(-(lambda_t1_sim*t1+lambda_t2_sim*t2))
+risk_ratio_t1 <- risk_t1/risk_u1
+risk_ratio_t2 <- risk_t2/risk_u2
+
+risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(seq(1, length(strata)), each=nrep), risk_ratio_t1))
+risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(seq(1, length(strata)), each=nrep), risk_ratio_t2))
+
+rr_means_t1<- risk_ratio_for_plot_t1%>%
+  group_by(V1)%>%
+  summarize(means_t1=round(mean(risk_ratio_t1),3))
+
+rr_means_t2<- risk_ratio_for_plot_t2%>%
+  group_by(V1)%>%
+  summarize(means_t2=round(mean(risk_ratio_t2),3))
+
+```
+
+#### Simulated risk ratios for strata 1-4, $t_1$ 
+
+```{r risk plot t1,fig.width=6,fig.height=4}
+ggplot(data=risk_ratio_for_plot_t1)+
+  geom_histogram(aes(x=risk_ratio_t1), fill="#FCCDE5")+
+  geom_text(data=rr_means_t1, aes(x=1.25, y=1000, label= paste("Mean=",means_t1)), size=3)+
+  theme_bw()+
+  facet_wrap(vars(V1))+
+  labs(title=quote("Simulated risk ratios for strata 1-4, "* t[1]* "."))+ 
+  xlab("Risk ratio")
+```
+
+#### Simulated risk ratios for strata 1-4, $t_2$
+
+```{r risk plot t2,fig.width=6,fig.height=4}
+ggplot(data=risk_ratio_for_plot_t2)+
+  geom_histogram(aes(x=risk_ratio_t2), fill="#80B1D3")+
+  geom_text(data=rr_means_t2, aes(x=1, y=1000, label= paste("Mean=",means_t2)), size=3)+
+  theme_bw()+
+  facet_wrap(vars(V1))+
+  labs(title= quote("Simulated risk ratios for strata 1-4, "* t[2]* "."))+ 
+  xlab("Risk ratio")
+
+```
+
+### Pooled risk ratio
+
+The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
+
+$$RR_{overall}= \sum_{s} RR_s n_s $$
+
+We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
+
+
+
+```{r pooling hrs}
+#matrix of risk ratios at t1, one column per stratum
+
+rr_t1<-matrix(risk_ratio_t1, ncol=length(strata))
+rr_t2<-matrix(risk_ratio_t2, ncol=length(strata))
+
+#matrix of ns in latch, one column per stratum
+strata_n_df<- as.data.frame(t(strata_vars$strata_n))
+ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep)))
+#create a vector of totals
+n_tot<- rowSums(ns)
+
+## calculate n x rr_mtrx (note that this is NOT matrix multiplication)
+#t1
+rn_t1 <- rowSums(rr_t1*ns)
+rr_tot_t1 <- rn_t1/n_tot
+cis_t1<- round(quantile(rr_tot_t1, probs = c(0.025, 0.975)),3)
+est_t1<- round(mean(rr_tot_t1),3)
+
+#t2
+rn_t2 <- rowSums(rr_t2*ns)
+rr_tot_t2 <- rn_t2/n_tot
+cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),3)
+est_t2<- round(mean(rr_tot_t2),3)
+```
+
+
+
+#### Calibrated risk ratio at the end of the trial, for the whole trial
+
+```{r t2 pooled results numerical, comment=NA}
+
+cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence interval ", cis_t2[1], "-", cis_t2[2], ").", sep=""))
+
+```
+
+\n
+\n
+```{r t2 pooled results,results="asis",fig.width=4,fig.height=3}
+
+ggplot(data=as.data.frame(rr_tot_t2))+
+  geom_histogram(aes(x=rr_tot_t2), fill="#80B1D3")+
+  theme_bw()+
+  labs(title=quote("Simulated risk ratio for the whole trial at "* t[2]* ".) "))+ 
+  xlab("Risk ratio")
+
+
+```
+
+### Absolute risk 
+
+We can use the new, calibrated risk ratio to estimate the number needed to treat (NNT) in the LATCH cohort from the absolute risk ratio (ARR). We use 10,000 samples of the risk ratio, and generate confidence intervals.
+
+$$ARR = 1/(\lambda_u - \lambda_u \times RR_{overall})$$
+
+$$ \text{NNT} = 1/\text{ARR} $$
+
+```{r absolute risks, comment=NA}
+#without simulation
+event_rate<- sum(strata_vars$strata_n_events_t2)/sum(strata_vars$strata_fu_t2)*365.25
+arr <- event_rate- event_rate*rr_tot_t2
+nnt <- 1/arr
+cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
+cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
+
+#with simulation
+# event_rate_sim<- lambda_u_sim*365.25
+# arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
+# nnt_sim<- 1/arr_sim
+# cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
+# cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
+
+cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
+# cat(paste(" Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
+
+
+```
+
+## Extension to adverse events
+
+Benefits of treatment must be balanced against potential risks, and so it might be informative to calibrate adverse events. In TRIDENT, adverse events of special interest were hypotension, syncope, headache, hyponatremia, hyperkalemia, injurious falls,and acute kidney injury. There was also a protocol requirement of discontinuation if serum creatinine increased level of 20% or more from the baseline value (creatinine was measured at baseline, 6 weeks and at the end of the trial). 
+
+Most of these adverse events were not measured in LATCH, but we have applied to link the LATCH cohort to routinely-collected data in Lothian, including renal function measurements. While a decline in renal function might not lead to discontinuation of a drug, it might have important implications for drug monitoring.
+
+If sufficient people in LATCH have repeat measurements of renal function, we could apply a similar method to above, to calibrate the rate of decline in renal function to a specified threshold (eg >20% increase in creatinine, >30% decline in eGFR). 
+
+## References
+
+<div id="refs"></div>
+
+
+## Appendix
+
+We can pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
+
+```{r t1 pooled results printout, comment=NA}
+cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
+```
+
+\n
+\n
+
+```{r t1 pooled results,results="asis",fig.width=3,fig.height=2}
+ggplot(data=as.data.frame(rr_tot_t1))+
+  geom_histogram(aes(x=rr_tot_t1), fill="#FCCDE5")+
+  theme_bw()+
+  labs(title="Simulated risk ratio, T1")+ 
+  xlab("Risk ratio")
+
+```
+
+
+
+## Extension: absolute risks in the prescence of competing risks.
+
+In this section, we aim for a fuller calculation of absolute risk of recurrent stroke, taking into account competing risk of death from a non-stroke cause. People with intracerebral haemorrhage have a high mortality, and this might have a significant effect on the absolute efficacy of treatment for particular treatment groups. 
+
+We can identify death from a non-stroke cause in LATCH. In TRIDENT, there was no significant difference in death from non-stroke causes between the two groups. For the subsequent analysis, we assume that the risk of non-stroke death does not differ between placebo and controls.
+
+This section is organised as follows. 
+
+* We demonstrate that an exponential model is acceptable for modelling competing risk of death. 
+* We calculate rates of the competing event in LATCH for each stratum. 
+* We calculate event rates accounting for this competing risk, and plot these for each stratum. 
+* We plot and tabulate the absolute risk reduction for each stratum and overall. 
+* We state the important assumptions of the analysis.
+
+### Model selection for competing risk {.tabset}
+
+Ideally we would model the competing risk of death as an exponential, for ease of calculation.  There appears to be a high early death rate until T1, which might be better fit by alternative model. However, as previously, we choose an exponential model for analytical tractability.
+
+#### KM curve
+
+First, look at the Kaplan-Meier curve.
+
+```{r KM death rates LATCH}
+s1<- survfit(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident)
+km_plot<- survminer::ggsurvplot(s1, ylim=c(0, 1), xlim=c(0, 6*365.25), break.x.by = 365.25, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+
+### to t1 only 
+s1_t1<- survfit(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident)
+km_plot_t1<- survminer::ggsurvplot(s1_t1, ylim=c(0, 1), xlim=c(0, 1.5*365.25), break.x.by = 365.25/2, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot_t1$plot+  scale_x_continuous(breaks = c(0,365.25),
+                                     labels = c(0,1))
+
+```
+
+#### Parametric model
+
+Look to see if the exponential model is acceptable at t2.
+
+```{r choose parametric model for competing event rate}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(as.difftime(latch_for_trident$time_to_comp_event, units="days"), latch_for_trident$comp_event_n)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$comp_event_n_t1)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+
+
+```{r comp event plots,fig.width=8,fig.height=4}
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+```
+
+#### Model selction at t1
+
+What does it look like at t1?
+
+```{r choose parametric model for competing event rate at t1}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(latch_for_trident$time_to_comp_event_t1, latch_for_trident$comp_event_n_t1, max.time=548)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$comp_event_n_t1)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+
+
+```{r comp event plots at t1,fig.width=8,fig.height=4}
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot_t1$data.survplot)+
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2),
+                                     labels = c(0,1,2))
+```
+
+
+### Rates of competing event (assume same for treated and untreated)
+
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. The tables shows the event rates for each stratum.
+
+```{r simple event rates comp}
+## Set number of samples with nrep for use throughout.
+nrep<-1000
+
+#event rate at t2
+rate_comp_est <- strata_vars$strata_comp_n_events_t2/ strata_vars$strata_comp_fu_t2*365.35*100
+log_rate_comp_est <- log(strata_vars$strata_comp_n_events_t2/ strata_vars$strata_comp_fu_t2)
+
+# Calculate SE of the log-rate for untreated
+log_rate_comp_se <- 1 / sqrt(strata_vars$strata_comp_n_events_t2)
+saveRDS(rate_comp_est, "RDS files/LATCH comp rates, strata above and below 65 years.rds")
+saveRDS(log_rate_comp_est, "RDS files/LATCH log comp rates, strata above and below 65 years.rds")
+saveRDS(log_rate_comp_se, "RDS files/LATCH se log comp rates, strata above and below 65 years.rds")
+
+
+## obtain and plot samples from rate in untreated
+untreated_rates_comp<- as.data.frame(cbind(strata_vars$strata_n, rate_comp_est,log_rate_comp_est, log_rate_comp_se))
+setDT(untreated_rates_comp)
+log_lambda_u_comp<- untreated_rates_comp[,rnorm(nrep, mean=log_rate_comp_est, sd=log_rate_comp_se), by=.I]
+
+#rename I column to the strata names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=seq(1, length(strata)), labels=strata)
+
+#calculate confidence intervals for visualisation
+untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
+saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata above and below 65 years.rds")
+
+#round all the numbers
+untreated_rates_comp_round<- round(untreated_rates_comp,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_comp_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
+
+```
+
+```{r table of rates comp}
+#print table of rates
+untreated_rates_comp_round<- as.data.frame(untreated_rates_comp_round)
+rownames(untreated_rates_comp_round)<- strata
+
+
+colnames(untreated_rates_comp_round) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
+
+
+ft_rates_comp<- flextable(untreated_rates_comp_round)
+
+ft_rates_comp2 <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
+ft_rates_comp2
+```
+
+### Calculate event rates accounting for competing risk
+
+The proportion event-free at each time point, taking into account competing risk of death, is:
+
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$
+
+The cumulative incidence of the outcome event $i$ is then:
+
+$$ \text{cumulative incidence} = \text{proportion event-free} \times \lambda_i / (\lambda_i + \lambda_j)$$
+
+However, if the rate changes over time, the above formula doesn't work; instead, we calculate the cumulative incidence for each event directly. For two time periods with different hazard ratios, the cumulative incidence needs adjusting at the point the hazard ratio changes, by a constant $c$. For two time periods, $\text{t}_1 = (0,\text{T}_1)$ and $\text{t}_2 = (\text{T}_1+1, \text{T}_2)$, with rates $\lambda_{i1}$ and $\lambda_{i2}$:
+
+$$ c =-exp{(-\lambda_{i1} \text{T}_1}) - exp{(-\lambda_{i2}(\text{T}_1+1))} $$
+The cumulative incidence for times beyond $\text{T}_1+1$ is:
+
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i2 t})-exp{(-\lambda_j  t}) +c $$
+As with the risk ratio analysis, I account for two time periods with different rates of outcome event.
+
+I will restate the major assumptions of this analysis:
+
+* Both the risk of recurrent stroke and the competing risk of death are adequately modelled as exponential distributions.
+* The competing risk of none-stroke death does not differ between the two arms.
+* People in LATCH would be commenced on the study drug at 7 days post-stroke.
+
+
+```{r calculate competing risk at T2 from DM code sim}
+#we amend the above code to account for two periods with different treated event rates.
+#need to adjust starting point after t1
+
+MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_times, t2_times){
+  
+  
+  #combine t1 and t2 to get total time
+  all_times <- c(t1_times, t2_times)
+  
+  #define empty matrices
+  lambda_new <- matrix(NA, ncol = 2, nrow = length(all_times)*nrep)
+  p_new <- matrix(NA, ncol = 3, nrow = length(all_times)*nrep)
+  cumslam_new <- NA
+  
+  #fill rate matrix - one column each for rate of event of interest (rec stroke) and competing risk (death)
+  lambda_new_t1  <- rep(rate.main.t1, length(t1_times))
+  lambda_new_t2<- rep(rate.main.t2, length(t2_times))
+  lambda_new [1:(length(t1_times)*nrep),1] <- rep(rate.main.t1, length(t1_times))
+  lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*nrep),1]<- rep(rate.main.t2, length(t2_times))
+  
+  lambda_new [,2] <- rep(rate.compete$V1, length(all_times))
+  
+  #sum these to get lambda event + lambda comp
+  slam_new_1 <- rowSums(lambda_new[1:(length(t1_times)*nrep),1:2]) 
+  slam_new_2 <- rowSums(lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*nrep),1:2]) 
+  slam_new <- c(slam_new_1, slam_new_2)
+  
+  #cumulative rates. First, for both outcomes
+  cumslam_new_1 <- 1 - exp(-(slam_new_1*rep(t1_times, each=nrep)))
+  # need to adjust start point at 2t2: mean of first day of t2 - mean of last day of t1. 
+  adj_cum <- mean(exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep)))) - mean(exp(-slam_new_1[(length(t1_times)*(nrep-1)):(length(t1_times)*nrep)]* rep(max(t1_times), nrep)))
+  
+  adj_cum_x <- exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-slam_new_1[(length(t1_times)*(nrep-1)):(length(t1_times)*nrep)]* rep(max(t1_times), nrep))
+
+  #calculate for t2
+  cumslam_new_2<- 1-exp(-slam_new_2*rep(t2_times, each=nrep)) + rep(adj_cum_x, length(t2))
+  #join together  
+  cumslam_new <- c(cumslam_new_1, cumslam_new_2)
+  
+  # test<- as.data.frame(cbind(cumslam_new, rep(all_times, each=nrep)))
+  # 
+  # ggplot(test, aes(x=V2, y=cumslam_new))+geom_line()
+  
+  # Calculate cumulative incidence for each separate outcome. Because of the two times, we need to do each separately (rather than the nice simple proportions in DM's original code)
+  
+    #for t1, calculate cum incidence of outcome j
+    cumslam_outcome_j_t1 <- 1 - exp(-(lambda_new_t1*rep(t1_times, each=nrep)))
+    # need to adjust start point at 2t2: mean of first day of t2 - mean of last day of t1 
+    adj_cum_j <- mean(exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep)))) - mean(exp(-(lambda_new_t1[(max(t1_times)*(nrep-1)+1): (max(t1_times)*nrep)]*rep(max(t1_times), nrep))))
+    
+    adj_cum_j_x <- exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-(lambda_new_t1[(max(t1_times)*(nrep-1)+1): (max(t1_times)*nrep)]*rep(max(t1_times), nrep)))
+    
+    
+    cumslam_outcome_j_t2<- 1-exp(-lambda_new_t2*rep(t2_times, each=nrep)) + rep(adj_cum_j_x, length(t2_times))
+    p_new[,1] <- c(cumslam_outcome_j_t1,cumslam_outcome_j_t2 )
+  
+  #the competing risk rate is constant
+    p_new[,2] <-  1 - exp(-(lambda_new[,2]*rep(all_times, each=nrep)))
+
+    p_new[,3] <- cumslam_new
+
+  p_new <- as.data.frame(p_new)
+}
+
+
+#for each output, will need mean of each day, and ci of each day. This function calculates this.
+get_CIs <- function(x, times){
+  
+  df<- setDT(as.data.frame(x))
+  df_new <- data.frame(matrix(nrow=length(times), ncol=9))
+  df[, index:=rep(times, each=nrep)]
+
+#Group by index then work out quantiles. Use data.table
+  df[,mean_main:= mean(V1,na.rm=T), by=index][,l_ci_main:=quantile(V1, probs=0.025, na.rm=T),by=index][, u_ci_main:=quantile(V1, probs=0.975,na.rm=T), by=index]
+  df[,mean_comp:= mean(V2,na.rm=T), by=index][,l_ci_comp:=quantile(V2, probs=0.025,na.rm=T),by=index][, u_ci_comp:=quantile(V2, probs=0.975,na.rm=T), by=index]
+  df[,mean_both:= mean(V3,na.rm=T), by=index][,l_ci_both:=quantile(V3, probs=0.025,na.rm=T),by=index][, u_ci_both:=quantile(V3, probs=0.975,na.rm=T), by=index]
+
+  #select only relevant columns and every ntimes row
+  df_new <- df[seq(1, nrow(df),nrep), ]
+  df_new
+}
+```
+
+
+```{r loop through strata for arr, results='asis'}
+
+#we want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
+t1_times <- seq(0, 548, 1)
+t2_times <- seq(549, 365.25*6, 1)
+all_times <- c(t1_times, t2_times)
+
+pl_2 <- list()
+pl_2_cis <- list()
+tx_2 <- list()
+tx_2_cis <- list()
+
+arr_2 <- list()
+rr_2 <- list()
+or_2<- list()
+
+for(i in 1:length(strata)){
+# Placebo arm
+    pl_2[[i]] <- MakeCumulative2(arm="u",
+                         rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                         rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                         rate.compete= exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                         t1_times,
+                         t2_times)
+    pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
+    
+    # Treatment arm
+    tx_2[[i]] <- MakeCumulative2 (arm = "rx",
+                          rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
+                         rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
+                         rate.compete= exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), 
+                         t1_times,
+                         t2_times)
+    tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
+    ## Calculate comparisons
+    arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
+    rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
+    or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
+
+}
+```
+
+### Example results: plots of outcomes
+
+In this section, simulate the results, using the four strata already defined, and the outcome events rates we estimated above using the hazard ratio of the trial.
+
+These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
+
+#### Plots of recurrent stroke outcome {.tabset}
+
+```{r plots of outcomes, fig.width=8, fig.height=6, results='asis'}
+
+
+for(i in 1:length(strata)){
+
+arms_x1 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
+                  tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
+
+## Create plots
+setDT(arms_x1)
+plot1_1 <- ggplot(arms_x1, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  #geom_point()+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()+
+  ylim(c(0,0.5))+
+  xlim(0,2300)+
+  xlab("Days")+
+  ylab("Cumulative incidence")+
+  ggtitle(paste("Cumulative incidence of primary outcome,", strata[i], sep=" "))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+cat(paste0('##### ', strata[i], '\n\n'))
+print(plot1_1)
+cat("\n\n")
+
+}
+
+```
+
+#### Plots of competing outcome (none-stroke death) {.tabset}
+
+```{r competing outcome plots,fig.width=8, fig.height=6, results='asis'}
+
+for(i in 1:length(strata)){
+
+arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
+                  tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
+
+## Create plots
+plot2_1 <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  #geom_point()+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()+
+  ylim(c(0,1))+
+  xlim(0,2300)+
+  xlab("Days")+
+  ylab("Cumulative incidence")+
+  ggtitle(paste("Cumulative incidence of competing outcome,", strata[i], sep=" "))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+cat(paste0('##### ', strata[i], '\n\n'))
+print(plot2_1)
+cat("\n\n")
+
+}
+
+```
+
+#### Plots of recurrent stroke, accounting for competing risk of none-stroke death) {.tabset}
+
+```{r both outcome plots,fig.width=8, fig.height=6,  results='asis'}
+
+
+for(i in 1:length(strata)){
+
+arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                  tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+
+## Create plots
+plot3_1 <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  #geom_point()+
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") +
+  theme_bw()+
+  ylim(c(0,1))+
+  xlim(0,2300)+
+  xlab("Days")+
+  ylab("Cumulative incidence")+
+  ggtitle(paste("Cumulative incidence of recurrent stroke, accounting for competing risk of death,", strata[i], sep=" "))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+cat(paste0('##### ', strata[i], '\n\n'))
+print(plot3_1)
+cat("\n\n")
+
+}
+```
+
+### Tables of absolute risk reduction {.tabset}
+
+These tables show the simulated absolute risk reduction for each stratum, accounting for competing risk of death.
+
+```{r table of ARR, results='asis'}
+#create tables of arr and event rates in each arm
+arr_cis<- list() 
+for(i in 1:length(strata)){
+  
+  arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
+  setDT(arr_cis[[i]])
+  arr_cis[[i]][, time:= all_times]
+  arr_cis_select<- arr_cis[[i]][time %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
+  arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
+  
+  colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
+  
+arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                  tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+
+setDT(arms_x3)
+arms3_select <- arms_x3[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
+abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
+abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
+colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
+
+arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
+ft<- flextable(arr_and_individ)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### ', strata[i], '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+}
+```
+
+### Combine absolute risk reduction across strata
+
+This table shows the absolute risk reduction for the whole LATCH population, taking into account competing risk of death.
+
+```{r combine across strata}
+
+#matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day.
+# this is unfinished. need to group by index then do once for each index (especially for cis), possibly in data.table
+
+
+arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE]))
+
+arr_flat<-matrix(arr_per_strata, ncol=length(strata))
+
+#matrix of ns in latch, one column per stratum
+strata_n_df<- as.data.frame(t(strata_vars$strata_n))
+ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times))))
+#create a vector of totals
+n_tot<- rowSums(ns)
+
+arr_n <- rowSums(arr_flat*ns)
+arr_n_tot <- as.data.frame(arr_n/n_tot)
+
+setDT(arr_n_tot)
+arr_n_tot[, index:=rep(all_times, each=nrep)]
+
+#Group by index then work out quantiles. Use data.table
+  arr_n_tot[,mean_both:= round(mean(`arr_n/n_tot`,na.rm=T)*100,1), by=index][,l_ci_both:=round(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100,1),by=index][, u_ci_both:=round(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100,1), by=index]
+
+
+  #select only relevant columns and every ntimes row
+  arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ]
+arr_select <- arr_n_tot_new[index %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][, `arr_n/n_tot`:=NULL]
+colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
+
+ft_comb<- flextable(arr_select)
+ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths)
+
+ft_comb
+
+```
+
+
+### Plot of ARR for each strata and overall
+
+```{r arr in one plot}
+
+#a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now.
+
+arr_rel_cols<- list()
+for(i in 1: length(strata)){
+  setDT(arr_cis[[i]])
+  arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both]
+}
+
+arr_all <- do.call(rbind.data.frame, arr_rel_cols)
+#we want to add in rows for the combined weighted total. First harmonise column names
+
+arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
+setnames(arr_comb_1, "index", "time")
+
+arr_all_comb<- rbind(arr_all, arr_comb_1)
+
+ggplot(data=arr_all_comb)+
+  geom_smooth( aes(x =time, y = mean_both, colour=strata))+
+  #geom_ribbon(aes(ymin = l_ci_both, ymax = u_ci_both, x=time), alpha=0.2)+ 
+  xlab("Time (days)") +
+  scale_y_continuous ("Absolute risk reduction (%)") +
+  scale_color_brewer(palette="Set3")+
+  theme_bw()+
+  xlim(0,2300)+
+  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
+  labs(color="Stratum")
+
+```
+
+
+
+
