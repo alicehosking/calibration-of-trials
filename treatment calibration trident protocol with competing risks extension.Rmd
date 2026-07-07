@@ -136,9 +136,11 @@ We now show the method for calibration through a worked example using real LATCH
 
 We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
 
-### Data tidying
+### Data tidying {.tabset}
 
 First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
+
+The tables below show the number of events in LATCH for different strata divisions. For the subsequent example, we use four strata.
 
 ```{r read in data, echo=FALSE, message=FALSE}
 latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 7 days.csv")
@@ -198,7 +200,132 @@ for(i in 1:length(strata)){
 strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2, strata_comp_n_events_t1=strata_comp_n_events_t1, strata_comp_n_events_t2=strata_comp_n_events_t2, strata_comp_fu_t1=strata_comp_fu_t1, strata_comp_fu_t2=strata_comp_fu_t2)
 saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
 
+#alternative strata n
+
+strata_x<- list(
+latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
+latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
+latch_65_75_m<- latch_for_trident[age_index>64&age_index<75&Gender_t=="Male"],
+latch_65_75_f<- latch_for_trident[age_index>64&age_index<75& Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>74&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>74& Gender_t=="Female"]
+  
+)
+
+strata_x_n<- c()
+strata_x_n_events_t1<- c()
+strata_x_n_events_t2<- c()
+strata_x_fu_t1 <- c()
+strata_x_fu_t2<- c()
+strata_x_comp_n_events_t1 <- c()
+strata_x_comp_n_events_t2 <- c()
+strata_x_comp_fu_t1<- c()
+strata_x_comp_fu_t2 <- c()
+
+for(i in 1:length(strata_x)){
+  strata_x_n[i] <-length(strata_x[[i]]$i_date) 
+  strata_x_n_events_t1[i]<- sum(strata_x[[i]]$censor_all_str_t1)
+  strata_x_n_events_t2[i]<- sum(strata_x[[i]]$censor_all_str_t2)
+  strata_x_fu_t1[i] <- sum(strata_x[[i]]$survival_stroke_t1)
+  strata_x_fu_t2[i]<- sum(strata_x[[i]]$survival_stroke_t2)
+  
+  strata_x_comp_n_events_t1[i]<- sum(strata_x[[i]]$comp_event_n_t1)
+  strata_x_comp_n_events_t2[i]<- sum(strata_x[[i]]$comp_event_n_t2)
+  strata_x_comp_fu_t1[i] <- sum(strata_x[[i]]$time_to_comp_event_t1)
+  strata_x_comp_fu_t2[i]<- sum(strata_x[[i]]$time_to_comp_event_t2)
+  
+
+}
+strata_x_vars<- list(strata_x_n=strata_x_n, strata_x_n_events_t1=strata_x_n_events_t1, strata_x_n_events_t2=strata_x_n_events_t2, strata_x_fu_t1=strata_x_fu_t1, strata_x_fu_t2=strata_x_fu_t2, strata_x_comp_n_events_t1=strata_x_comp_n_events_t1, strata_x_comp_n_events_t2=strata_x_comp_n_events_t2, strata_x_comp_fu_t1=strata_x_comp_fu_t1, strata_x_comp_fu_t2=strata_x_comp_fu_t2)
+
+
+#alternative strata n 2
+
+strata_y<- list(
+latch_under_60_m<- latch_for_trident[age_index<60&Gender_t=="Male"],
+latch_under_60_f<- latch_for_trident[age_index<60&Gender_t=="Female"],
+latch_60_70_m<- latch_for_trident[age_index>59&age_index<70&Gender_t=="Male"],
+latch_60_70_f<- latch_for_trident[age_index>59&age_index<70& Gender_t=="Female"],
+latch_70_80_m<- latch_for_trident[age_index>69&age_index<80&Gender_t=="Male"],
+latch_70_80_f<- latch_for_trident[age_index>69&age_index<80& Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>79&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>79& Gender_t=="Female"]
+  
+)
+
+strata_y_n<- c()
+strata_y_n_events_t1<- c()
+strata_y_n_events_t2<- c()
+strata_y_fu_t1 <- c()
+strata_y_fu_t2<- c()
+strata_y_comp_n_events_t1 <- c()
+strata_y_comp_n_events_t2 <- c()
+strata_y_comp_fu_t1<- c()
+strata_y_comp_fu_t2 <- c()
+
+for(i in 1:length(strata_y)){
+  strata_y_n[i] <-length(strata_y[[i]]$i_date) 
+  strata_y_n_events_t1[i]<- sum(strata_y[[i]]$censor_all_str_t1)
+  strata_y_n_events_t2[i]<- sum(strata_y[[i]]$censor_all_str_t2)
+  strata_y_fu_t1[i] <- sum(strata_y[[i]]$survival_stroke_t1)
+  strata_y_fu_t2[i]<- sum(strata_y[[i]]$survival_stroke_t2)
+  
+  strata_y_comp_n_events_t1[i]<- sum(strata_y[[i]]$comp_event_n_t1)
+  strata_y_comp_n_events_t2[i]<- sum(strata_y[[i]]$comp_event_n_t2)
+  strata_y_comp_fu_t1[i] <- sum(strata_y[[i]]$time_to_comp_event_t1)
+  strata_y_comp_fu_t2[i]<- sum(strata_y[[i]]$time_to_comp_event_t2)
+  
+
+}
+strata_y_vars<- list(strata_y_n=strata_y_n, strata_y_n_events_t1=strata_y_n_events_t1, strata_y_n_events_t2=strata_y_n_events_t2, strata_y_fu_t1=strata_y_fu_t1, strata_y_fu_t2=strata_y_fu_t2, strata_y_comp_n_events_t1=strata_y_comp_n_events_t1, strata_y_comp_n_events_t2=strata_y_comp_n_events_t2, strata_y_comp_fu_t1=strata_y_comp_fu_t1, strata_y_comp_fu_t2=strata_y_comp_fu_t2)
 ```
+
+```{r tables of n events for different strata, results='asis'}
+
+strata_four <- do.call(cbind.data.frame, strata_vars)
+setDT(strata_four)
+strata_four <-strata_four[, strata_names:=c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")][, c("strata_names", "strata_n", "strata_n_events_t1", "strata_n_events_t2","strata_comp_n_events_t1", "strata_comp_n_events_t2")]
+
+colnames(strata_four)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+strata_six <- do.call(cbind.data.frame, strata_x_vars)
+setDT(strata_six)
+strata_six <- strata_six[, strata_names:=c("Male <65 years", "Female <65 years", "Male 65 to 75 years","Female 65 to 75 years", "Male 75 years and over", "Female 75 years and over")][, c("strata_names", "strata_x_n", "strata_x_n_events_t1", "strata_x_n_events_t2","strata_x_comp_n_events_t1", "strata_x_comp_n_events_t2")]
+colnames(strata_six)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+strata_eight <- do.call(cbind.data.frame, strata_y_vars)
+setDT(strata_eight)
+strata_eight <- strata_eight[, strata_names:=c("Male <60 years", "Female <60 years", "Male 60 to 70 years","Female 60 to 70 years","Male 70 to 80 years","Female 70 to 80 years", "Male 75 years and over", "Female 75 years and over")][, c("strata_names", "strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
+colnames(strata_eight)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+ft <- flextable(strata_four)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Four strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+
+ft <- flextable(strata_six)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Six strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+
+ft <- flextable(strata_eight)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+cat(paste0('#### Eight strata', '\n\n'))
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+```
+
 
 
 ### Parametric survival model for LATCH {.tabset}
@@ -375,7 +502,7 @@ log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), 
 
 #rename I column to the strata names
 strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
-log_lambda_u$I <- factor(log_lambda_u$I, levels=c(1,2,3,4), labels=strata)
+log_lambda_u$I <- factor(log_lambda_u$I, levels=seq(1, length(strata)), labels=strata)
 
 #calculate confidence intervals for visualisation
 untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
@@ -490,7 +617,7 @@ hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log
 log_hrs_t1_per_strata <- hrs_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
 
 #rename I column to the strata names
-log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=c(1,2,3,4), labels=strata)
+log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=seq(1, length(strata)), labels=strata)
 
 
 #plot to confirm normality
@@ -521,7 +648,7 @@ ggplot(data=log_hrs_t1_per_strata)+
 log_hrs_t2_per_strata <- hrs_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
 
 #rename I column to the strata names
-log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=c(1,2,3,4), labels=strata)
+log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=seq(1, length(strata)), labels=strata)
 
 #plot to confirm normality
 ggplot(data=log_hrs_t2_per_strata)+
@@ -595,8 +722,8 @@ risk_t2 <- 1-exp(-(lambda_t1_sim*t1+lambda_t2_sim*t2))
 risk_ratio_t1 <- risk_t1/risk_u1
 risk_ratio_t2 <- risk_t2/risk_u2
 
-risk_ratio_for_plot_t1 <- as.data.frame(cbind(c(rep(1,nrep), rep(2, nrep), rep(3, nrep), rep(4, nrep)), risk_ratio_t1))
-risk_ratio_for_plot_t2 <- as.data.frame(cbind(c(rep(1,nrep), rep(2, nrep), rep(3, nrep), rep(4, nrep)), risk_ratio_t2))
+risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(seq(1, length(strata)), each=nrep), risk_ratio_t1))
+risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(seq(1, length(strata)), each=nrep), risk_ratio_t2))
 
 rr_means_t1<- risk_ratio_for_plot_t1%>%
   group_by(V1)%>%
@@ -646,8 +773,8 @@ We do this for all samples, then generate a mean and confidence intervals for th
 ```{r pooling hrs}
 #matrix of risk ratios at t1, one column per stratum
 
-rr_t1<-matrix(risk_ratio_t1, ncol=4)
-rr_t2<-matrix(risk_ratio_t2, ncol=4)
+rr_t1<-matrix(risk_ratio_t1, ncol=length(strata))
+rr_t2<-matrix(risk_ratio_t2, ncol=length(strata))
 
 #matrix of ns in latch, one column per stratum
 strata_n_df<- as.data.frame(t(strata_vars$strata_n))
@@ -949,7 +1076,7 @@ log_lambda_u_comp<- untreated_rates_comp[,rnorm(nrep, mean=log_rate_comp_est, sd
 
 #rename I column to the strata names
 strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
-log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=c(1,2,3,4), labels=strata)
+log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=seq(1, length(strata)), labels=strata)
 
 #calculate confidence intervals for visualisation
 untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
