@@ -119,7 +119,7 @@ The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presume
 
 *	Antihypertensive treatment is intended for secondary prevention in people who survive the initial ICH. In the LATCH cohort, a 40 percent of people die within 30 days of ICH; beyond 30 days, the death rate reduces, and we pragmatically assume those alive at 30 days after ICH are clinically stable; there are 525 people alive at 30 days. 
 *	We did not have measurement of post-ICH blood pressure for all of LATCH. Almost everyone with intracerebral haemorrhage is hypertensive; we expect very few to have blood pressure . If the triple pill used in TRIDENT were used in clinical practice, there would likely be no upper restriction on pre-treatment blood pressure; therefore we do not limit by blood pressure.
-*	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 602 who survived 7 days had a pre-morbid mRS of 4 or less.
+*	The TRIDENT pill would only be used on those able to get out of bed; therefore, we will limit inclusion to those with pre-morbid modified Rankin Scale (mRS) of 4 or less. All 525 who survived 30 days had a pre-morbid mRS of 4 or less.
 
 
 #### Assumptions and limitations
@@ -139,7 +139,7 @@ We will calibrate at two time points, 18 months ($t_1$) and end of follow up (ap
 
 ### Data tidying {.tabset}
 
-First we filter LATCH to only those who survived 7 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
+First we filter LATCH to only those who survived 30 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
 
 The tables below show the number of events in LATCH for different strata divisions. For the subsequent example, we use four strata.
 
@@ -249,8 +249,8 @@ latch_60_70_m<- latch_for_trident[age_index>59&age_index<70&Gender_t=="Male"],
 latch_60_70_f<- latch_for_trident[age_index>59&age_index<70& Gender_t=="Female"],
 latch_70_80_m<- latch_for_trident[age_index>69&age_index<80&Gender_t=="Male"],
 latch_70_80_f<- latch_for_trident[age_index>69&age_index<80& Gender_t=="Female"],
-latch_over_65_m<- latch_for_trident[age_index>79&Gender_t=="Male"],
-latch_over_65_f<- latch_for_trident[age_index>79& Gender_t=="Female"]
+latch_over_80_m<- latch_for_trident[age_index>79&Gender_t=="Male"],
+latch_over_80_f<- latch_for_trident[age_index>79& Gender_t=="Female"]
   
 )
 
@@ -296,7 +296,7 @@ colnames(strata_six)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Rec
 
 strata_eight <- do.call(cbind.data.frame, strata_y_vars)
 setDT(strata_eight)
-strata_eight <- strata_eight[, strata_names:=c("Male <60 years", "Female <60 years", "Male 60 to 70 years","Female 60 to 70 years","Male 70 to 80 years","Female 70 to 80 years", "Male 75 years and over", "Female 75 years and over")][, c("strata_names", "strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
+strata_eight <- strata_eight[, strata_names:=c("Male <60 years", "Female <60 years", "Male 60 to 70 years","Female 60 to 70 years","Male 70 to 80 years","Female 70 to 80 years", "Male 80 years and over", "Female 80 years and over")][, c("strata_names", "strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
 colnames(strata_eight)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
 
 ft <- flextable(strata_four)
@@ -1141,11 +1141,9 @@ I will restate the major assumptions of this analysis:
 
 
 ```{r calculate competing risk at T2 from DM code sim}
-#we amend the above code to account for two periods with different treated event rates.
-#need to adjust starting point after t1
+#This function calculates the cumulative incidence accounting for competing risks.
 
 MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_times, t2_times){
-  
   
   #combine t1 and t2 to get total time
   all_times <- c(t1_times, t2_times)
@@ -1180,10 +1178,6 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   #join together  
   cumslam_new <- c(cumslam_new_1, cumslam_new_2)
   
-  # test<- as.data.frame(cbind(cumslam_new, rep(all_times, each=nrep)))
-  # 
-  # ggplot(test, aes(x=V2, y=cumslam_new))+geom_line()
-  
   # Calculate cumulative incidence for each separate outcome. Because of the two times, we need to do each separately (rather than the nice simple proportions in DM's original code)
   
     #for t1, calculate cum incidence of outcome j
@@ -1206,7 +1200,7 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
 }
 
 
-#for each output, will need mean of each day, and ci of each day. This function calculates this.
+#For each output, will need mean of each day, and ci of each day. This function calculates this.
 get_CIs <- function(x, times){
   
   df<- setDT(as.data.frame(x))
@@ -1227,7 +1221,7 @@ get_CIs <- function(x, times){
 
 ```{r loop through strata for arr, results='asis'}
 
-#we want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
+#We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
 t1_times <- seq(0, 548, 1)
 t2_times <- seq(549, 365.25*6, 1)
 all_times <- c(t1_times, t2_times)
@@ -1276,8 +1270,6 @@ These plots show the cumulative incidence of a) recurrent stroke, b) death due t
 #### Plots of recurrent stroke outcome {.tabset}
 
 ```{r plots of outcomes, fig.width=8, fig.height=6, results='asis'}
-
-
 for(i in 1:length(strata)){
 
 arms_x1 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
@@ -1344,7 +1336,6 @@ cat("\n\n")
 #### Plots of recurrent stroke, accounting for competing risk of none-stroke death) {.tabset}
 
 ```{r both outcome plots,fig.width=8, fig.height=6,  results='asis'}
-
 
 for(i in 1:length(strata)){
 
