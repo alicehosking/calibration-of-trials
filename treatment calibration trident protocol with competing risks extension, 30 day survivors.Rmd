@@ -1063,9 +1063,9 @@ ggplot() +
 ```
 
 
-### Rates of competing event (assume same for treated and untreated)
+### Rates of competing event
 
-Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. The tables shows the event rates for each stratum.
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. The tables shows the event rates for each stratum in the untreated group.
 
 ```{r simple event rates comp}
 #event rate at t2
@@ -1114,6 +1114,45 @@ ft_rates_comp2 <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
 ft_rates_comp2
 ```
 
+### Hazard ratio of competing risk
+
+The competing risk of death might not be independent of treatment with the study drug, since we would expect antihypertensives to reduce death from other cardiovascular causes.
+
+We therefore simulate a hazard ratio for the competing risk between the placebo arm and treatment arm. This could be different for $\text{t}_1$ and $\text{t}_2$ and for individual strata, but for the purposes of this simulation I have kept it the same.
+
+```{r simulate competing event rate in rx arm}
+
+HR_comp <- data.frame(matrix(nrow=length(strata), ncol=3))
+colnames(HR_comp)<- c("HR", "l_ci", "u_ci")
+setDT(HR_comp)
+
+HR_comp[, HR:=as.numeric(HR)][,HR:=0.97][, l_ci:= as.numeric(l_ci)][,l_ci:=0.90][,u_ci:= as.numeric(u_ci)][,u_ci:= 1.10]
+HR_comp[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+
+log_hr_comp<- HR_comp[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
+
+
+log_lambda_t_comp <- copy(log_lambda_u_comp)
+log_lambda_t_comp[, log_rate_comp_t_est:=V1+log_hr_comp$V1 ][,V1:=NULL]
+#harmonaise names with untreated
+setnames(log_lambda_t_comp, "log_rate_comp_t_est", "V1")
+
+#calculate confidence intervals for visualisation
+conf_int_treated <- log_lambda_t_comp[,quantile(V1, c(0.025,0.5,0.975)), by=I]
+
+conf_int_treated[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata))]
+#widen table
+treated_comp <-dcast(conf_int_treated, I~cat, value.var = "V1")
+treated_comp_2<- treated_comp[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
+colnames(treated_comp_2) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
+
+
+ft_rates_comp<- flextable(treated_comp_2)
+
+ft_rates_comp2 <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
+ft_rates_comp2
+```
+
 ### Calculate event rates accounting for competing risk
 
 The proportion event-free at each time point, taking into account competing risk of death, is:
@@ -1135,14 +1174,20 @@ As with the risk ratio analysis, I account for two time periods with different r
 I will restate the major assumptions of this analysis:
 
 * Both the risk of recurrent stroke and the competing risk of death are adequately modelled as exponential distributions.
-* The competing risk of none-stroke death does not differ between the two arms.
-* People in LATCH would be commenced on the study drug at 7 days post-stroke.
+* People in LATCH would be commenced on the study drug at 30 days post-stroke.
 
 
 ```{r calculate competing risk at T2 from DM code sim}
 #This function calculates the cumulative incidence accounting for competing risks.
 
-MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_times, t2_times){
+MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete.t1, rate.compete.t2, t1_times, t2_times){
+  
+  # 
+  # arm="u"
+  #                        rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)]
+  #                        rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)]
+  #                        rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2])
+  #                        rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2])
   
   #combine t1 and t2 to get total time
   all_times <- c(t1_times, t2_times)
@@ -1153,12 +1198,20 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   cumslam_new <- NA
   
   #fill rate matrix - one column each for rate of event of interest (rec stroke) and competing risk (death)
+  #column 1 is rec stroke
   lambda_new_t1  <- rep(rate.main.t1, length(t1_times))
   lambda_new_t2<- rep(rate.main.t2, length(t2_times))
-  lambda_new [1:(length(t1_times)*nrep),1] <- rep(rate.main.t1, length(t1_times))
-  lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*nrep),1]<- rep(rate.main.t2, length(t2_times))
+  lambda_new [1:(length(t1_times)*nrep),1] <- lambda_new_t1
+  lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*nrep),1]<- lambda_new_t2
   
-  lambda_new [,2] <- rep(rate.compete$V1, length(all_times))
+  #column 2 is competing event
+  lambda_new_t1_comp  <- rep(rate.compete.t1$V1, length(t1_times))
+  lambda_new_t2_comp <- rep(rate.compete.t2$V1, length(t2_times))
+  lambda_new [1:(length(t1_times)*nrep),2] <- lambda_new_t1_comp
+  lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*nrep),2]<-lambda_new_t2_comp
+  
+  
+  # lambda_new_t1 [,2] <- rep(rate.compete.t1$V1, length(all_times))
   
   #sum these to get lambda event + lambda comp
   slam_new_1 <- rowSums(lambda_new[1:(length(t1_times)*nrep),1:2]) 
@@ -1167,10 +1220,8 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   
   #cumulative rates. First, for both outcomes
   cumslam_new_1 <- 1 - exp(-(slam_new_1*rep(t1_times, each=nrep)))
-  # need to adjust start point at 2t2: mean of first day of t2 - mean of last day of t1. 
-  adj_cum <- mean(exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep)))) - mean(exp(-slam_new_1[(length(t1_times)*(nrep-1)):(length(t1_times)*nrep)]* rep(max(t1_times), nrep)))
-  
-  adj_cum_x <- exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-slam_new_1[(length(t1_times)*(nrep-1)):(length(t1_times)*nrep)]* rep(max(t1_times), nrep))
+  # need to adjust start point at end of t1: first day of t2 - last day of t1. 
+  adj_cum_x <- exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-slam_new_1[((length(t1_times)-1)*nrep+1):(length(t1_times)*nrep)]* rep(max(t1_times), nrep))
 
   #calculate for t2
   cumslam_new_2<- 1-exp(-slam_new_2*rep(t2_times, each=nrep)) + rep(adj_cum_x, length(t2))
@@ -1178,20 +1229,31 @@ MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_t
   cumslam_new <- c(cumslam_new_1, cumslam_new_2)
   
   # Calculate cumulative incidence for each separate outcome. Because of the two times, we need to do each separately (rather than the nice simple proportions in DM's original code)
-  
     #for t1, calculate cum incidence of outcome j
     cumslam_outcome_j_t1 <- 1 - exp(-(lambda_new_t1*rep(t1_times, each=nrep)))
-    # need to adjust start point at 2t2: mean of first day of t2 - mean of last day of t1 
-    adj_cum_j <- mean(exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep)))) - mean(exp(-(lambda_new_t1[(max(t1_times)*(nrep-1)+1): (max(t1_times)*nrep)]*rep(max(t1_times), nrep))))
+    # need to adjust start point at 2t2:  first day of t2 - last day of t1 
+    # adj_cum_j_x <- exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-(lambda_new_t1[(max(t1_times)*(nrep-1)+1): (max(t1_times)*nrep)]*rep(max(t1_times), nrep)))
+    # # 
+    day_1_t2 <-exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep)))
+    day_n_t1 <- exp(-(lambda_new_t1[(((length(t1_times)-1)*nrep)+1): (length(t1_times)*nrep)]*rep(max(t1_times), nrep)))
     
-    adj_cum_j_x <- exp(-lambda_new_t2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-(lambda_new_t1[(max(t1_times)*(nrep-1)+1): (max(t1_times)*nrep)]*rep(max(t1_times), nrep)))
-    
+    adj_cum_j_x <- day_1_t2 - day_n_t1 
     
     cumslam_outcome_j_t2<- 1-exp(-lambda_new_t2*rep(t2_times, each=nrep)) + rep(adj_cum_j_x, length(t2_times))
     p_new[,1] <- c(cumslam_outcome_j_t1,cumslam_outcome_j_t2 )
   
-  #the competing risk rate is constant
-    p_new[,2] <-  1 - exp(-(lambda_new[,2]*rep(all_times, each=nrep)))
+  #do same for competing risk
+    cumslam_outcome_comp_t1 <- 1 - exp(-(lambda_new_t1_comp*rep(t1_times, each=nrep)))
+    
+    day_1_t2_comp <-exp(-lambda_new_t2_comp[1:nrep]*(rep(t2_times[1],nrep)))
+    day_n_t1_comp <- exp(-(lambda_new_t1_comp[(((length(t1_times)-1)*nrep)+1): (length(t1_times)*nrep)]*rep(max(t1_times), nrep)))
+    
+    adj_cum_comp_x <- day_1_t2_comp - day_n_t1_comp 
+    
+    cumslam_outcome_comp_t2<- 1-exp(-lambda_new_t2_comp*rep(t2_times, each=nrep)) + rep(adj_cum_comp_x, length(t2_times))
+    
+    
+    p_new[,2] <-  c(cumslam_outcome_comp_t1, cumslam_outcome_comp_t2)
 
     p_new[,3] <- cumslam_new
 
@@ -1221,6 +1283,8 @@ get_CIs <- function(x, times){
 ```{r loop through strata for arr, results='asis'}
 
 #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
+
+
 t1_times <- seq(0, 548, 1)
 t2_times <- seq(549, 365.25*6, 1)
 all_times <- c(t1_times, t2_times)
@@ -1239,7 +1303,8 @@ for(i in 1:length(strata)){
     pl_2[[i]] <- MakeCumulative2(arm="u",
                          rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
                          rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                         rate.compete= exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                         rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                         rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
                          t1_times,
                          t2_times)
     pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
@@ -1248,7 +1313,8 @@ for(i in 1:length(strata)){
     tx_2[[i]] <- MakeCumulative2 (arm = "rx",
                           rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
                          rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
-                         rate.compete= exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), 
+                         rate.compete.t1 = exp(log_lambda_t_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                         rate.compete.t2 = exp(log_lambda_t_comp[(nrep*(i-1)+1):(i*nrep),2]),
                          t1_times,
                          t2_times)
     tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
@@ -1262,7 +1328,7 @@ for(i in 1:length(strata)){
 
 ### Example results: plots of outcomes {.tabset}
 
-In this section, simulate the results, using the four strata already defined, and the outcome events rates we estimated above using the hazard ratio of the trial.
+In this section, we simulate the results, using the four strata already defined, and the outcome events rates we estimated above using the hazard ratio of the trial. 
 
 These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
 
@@ -1325,7 +1391,7 @@ plots_comp[[1]]+plots_comp[[2]]+plots_comp[[3]]+plots_comp[[4]]+plot_layout(guid
 
 ```
 
-#### Recurrent stroke, accounting for competing risk of none-stroke death) 
+#### Recurrent stroke, accounting for competing risk of none-stroke death 
 
 ```{r both outcome plots,fig.width=8, fig.height=6,  results='asis'}
 
