@@ -565,7 +565,7 @@ old_young_interaction<- over_60_hr/under_60_hr
 #need to make assumption on HR for young men
 
 hrs_t2<- as.data.frame(rbind(
-hr_young_men<- c(0.4, 0.26, 0.8),
+hr_young_men<- c(0.3, 0.26, 0.7),
 hr_young_women <- hr_young_men*f_m_interaction,
 hr_old_men<- hr_young_men*old_young_interaction,
 hr_old_women <- hr_young_men*f_m_interaction*old_young_interaction
@@ -885,11 +885,21 @@ ggplot(data=as.data.frame(rr_tot_t1))+
 
 ## Extension: absolute risks in the prescence of competing risks.
 
-To properly calculate absolute risk of recurrent stroke, we need to take into account competing risk of death. We earlier defined variables to allow us to calculate the rate of competing events. At this stage, I've just done for the whole dataset, not individual strata.
+In this section, we aim for a fuller calculation of absolute risk of recurrent stroke, taking into account competing risk of death from a non-stroke cause. People with intracerebral haemorrhage have a high mortality, and this might have a significant effect on the absolute efficacy of treatment for particular treatment groups. 
+
+We can identify death from a non-stroke cause in LATCH. In TRIDENT, there was no significant difference in death from non-stroke causes between the two groups. For the subsequent analysis, we assume that the risk of non-stroke death does not differ between placebo and controls.
+
+This section is organised as follows. 
+
+* We demonstrate that an exponential model is acceptable for modelling competing risk of death. 
+* We calculate rates of the competing event in LATCH for each stratum. 
+* We calculate event rates accounting for this competing risk, and plot these for each stratum. 
+* We plot and tabulate the absolute risk reduction for each stratum and overall. 
+* We state the important assumptions of the analysis.
 
 ### Model selection for competing risk {.tabset}
 
-Ideally we would model the competing risk of death as an exponential, for ease of calculation.  There appears to be a high early death rate until T1, which might be better fit by alternative model. To be discussed with David.
+Ideally we would model the competing risk of death as an exponential, for ease of calculation.  There appears to be a high early death rate until T1, which might be better fit by alternative model. However, as previously, we choose an exponential model for analytical tractability.
 
 #### KM curve
 
@@ -1103,31 +1113,33 @@ ft_rates_comp<- flextable(untreated_rates_comp_round)
 ft_rates_comp2 <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
 ft_rates_comp2
 ```
+
 ### Calculate event rates accounting for competing risk
 
-At this stage I haven't simulated confidence intervals.
 The proportion event-free at each time point, taking into account competing risk of death, is:
 
-
-$$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$.
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$
 
 The cumulative incidence of the outcome event $i$ is then:
 
 $$ \text{cumulative incidence} = \text{proportion event-free} \times \lambda_i / (\lambda_i + \lambda_j)$$
 
-However, if the rate changes over time, the above formulate doesn't work; instead, we calculate the cumulative incidence for each event directly. For two time periods with different hazard ratios, the cumulative incidence needs adjusting at the point the hazard ratio changes, by an adjustemnt constant $c_{adjustment}$. For two time periods, $\text{t}_1 = (0,\text{T}_1)$ and $\text{t}_2 = (\text{T}_1+1, \text{T}_2)$, with rates $\lambda_{i1}$ and $\lambda_{i2}$:
+However, if the rate changes over time, the above formula doesn't work; instead, we calculate the cumulative incidence for each event directly. For two time periods with different hazard ratios, the cumulative incidence needs adjusting at the point the hazard ratio changes, by a constant $c$. For two time periods, $\text{t}_1 = (0,\text{T}_1)$ and $\text{t}_2 = (\text{T}_1+1, \text{T}_2)$, with rates $\lambda_{i1}$ and $\lambda_{i2}$:
 
-$$ c_{adjustment} =-exp{(-\lambda_{i1} \text{T}_1}) - exp{(-\lambda_{i2}(\text{T}_1+1))} $$
-
+$$ c =-exp{(-\lambda_{i1} \text{T}_1}) - exp{(-\lambda_{i2}(\text{T}_1+1))} $$
 The cumulative incidence for times beyond $\text{T}_1+1$ is:
 
-$$\text{proportion event-free} = 1 - exp{(-\lambda_i2 t})-exp{(-\lambda_j  t}) +c_{adjustment} $$.
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i2 t})-exp{(-\lambda_j  t}) +c $$
+As with the risk ratio analysis, I account for two time periods with different rates of outcome event.
 
-#### Time-varying hazard ratio
+I will restate the major assumptions of this analysis:
 
-I account for two distinct time periods, with different rates of outcome event.
+* Both the risk of recurrent stroke and the competing risk of death are adequately modelled as exponential distributions.
+* The competing risk of none-stroke death does not differ between the two arms.
+* People in LATCH would be commenced on the study drug at 7 days post-stroke.
 
-```{r calculate competing risk at T2 from DM code sim, echo=TRUE}
+
+```{r calculate competing risk at T2 from DM code sim}
 #we amend the above code to account for two periods with different treated event rates.
 #need to adjust starting point after t1
 
@@ -1254,25 +1266,15 @@ for(i in 1:length(strata)){
 }
 ```
 
-### Plots
+### Example results: plots of outcomes
+
+In this section, simulate the results, using the four strata already defined, and the outcome events rates we estimated above using the hazard ratio of the trial.
+
+These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
 
 #### Plots of recurrent stroke outcome {.tabset}
 
 ```{r plots of outcomes, fig.width=8, fig.height=6, results='asis'}
-
-# #plot
-# arms <- bind_rows(tibble(obs.times = rep(c(t1_times, t2_times), each=nrep), arm = "pl", n1_cum_per = pl_2[,1]),
-#                   tibble(obs.times = rep(c(t1_times, t2_times), each=nrep), arm = "tx", n1_cum_per = tx_2[,1]))
-# 
-# setDT(arms)
-# ## Create plots
-# plot1 <- ggplot (arms , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
-#   geom_point() +
-#   scale_x_continuous("Time (days)") +
-#   scale_y_continuous ("Cumulative incidence") +
-#   theme_bw()
-# plot1
-
 
 
 for(i in 1:length(strata)){
@@ -1371,9 +1373,9 @@ cat("\n\n")
 }
 ```
 
+### Tables of absolute risk reduction {.tabset}
 
-### Tables {.tabset}
-
+These tables show the simulated absolute risk reduction for each stratum, accounting for competing risk of death.
 
 ```{r table of ARR, results='asis'}
 #create tables of arr and event rates in each arm
@@ -1409,7 +1411,9 @@ cat("\n\n")
 }
 ```
 
-### Combine across strata
+### Combine absolute risk reduction across strata
+
+This table shows the absolute risk reduction for the whole LATCH population, taking into account competing risk of death.
 
 ```{r combine across strata}
 
@@ -1434,7 +1438,7 @@ setDT(arr_n_tot)
 arr_n_tot[, index:=rep(all_times, each=nrep)]
 
 #Group by index then work out quantiles. Use data.table
-  arr_n_tot[,mean_main:= round(mean(`arr_n/n_tot`,na.rm=T)*100,1), by=index][,l_ci_main:=round(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100,1),by=index][, u_ci_main:=round(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100,1), by=index]
+  arr_n_tot[,mean_both:= round(mean(`arr_n/n_tot`,na.rm=T)*100,1), by=index][,l_ci_both:=round(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100,1),by=index][, u_ci_both:=round(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100,1), by=index]
 
 
   #select only relevant columns and every ntimes row
@@ -1449,6 +1453,39 @@ ft_comb
 
 ```
 
+
+### Plot of ARR for each strata and overall
+
+```{r arr in one plot}
+
+#a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now.
+
+arr_rel_cols<- list()
+for(i in 1: length(strata)){
+  setDT(arr_cis[[i]])
+  arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both]
+}
+
+arr_all <- do.call(rbind.data.frame, arr_rel_cols)
+#we want to add in rows for the combined weighted total. First harmonise column names
+
+arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
+setnames(arr_comb_1, "index", "time")
+
+arr_all_comb<- rbind(arr_all, arr_comb_1)
+
+ggplot(data=arr_all_comb)+
+  geom_smooth( aes(x =time, y = mean_both, colour=strata))+
+  #geom_ribbon(aes(ymin = l_ci_both, ymax = u_ci_both, x=time), alpha=0.2)+ 
+  xlab("Time (days)") +
+  scale_y_continuous ("Absolute risk reduction (%)") +
+  scale_color_brewer(palette="Set3")+
+  theme_bw()+
+  xlim(0,2300)+
+  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
+  labs(color="Stratum")
+
+```
 
 
 
