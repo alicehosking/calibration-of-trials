@@ -1,4 +1,3 @@
-
 ---
 title: "Calibration of the TRIDENT trial to a population-based
 cohort in Scotland."
@@ -6,9 +5,7 @@ author: "Dr Alice Hosking, Dr Katie Harris, Prof Rustam Al-Shahi Salman, Prof Wi
 email: "alice.hosking@ed.ac.uk"
 date: "`r Sys.Date()`"
 output:
-  <!-- word_document: -->
-  <!-- toc: true -->
- html_document:
+  html_document:
    toc: true
    number_sections: true
    theme: united
@@ -36,745 +33,13 @@ library(RColorBrewer)
 set.seed(42)
 
 knitr::opts_chunk$set(message = F, warning=F, echo=F)
-
+times_for_tables<- c(0, 90,365, 365*5)
 set_flextable_defaults(
-font.size = 10, theme_fun = theme_vanilla,
-padding = 6,
-background.color = "#FFFFFF")
-```
+  font.size = 10, theme_fun = theme_vanilla,
+  padding = 6,
+  background.color = "#FFFFFF")
 
-## Introduction
 
-### Purpose and scope of this document
-
-This is a brief report of the results of calibration of the TRIDENT trial to a population-based inception cohort.
-
-## Methods
-
-### Time period definitions
-
-We calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
-
-### Strata for analysis
-
-Following inspection of the overlap between LATCH and TRIDENT, the split is as follows:
-TRIDENT is split into four strata: Male <65 years, Female <65 years, Male 65 years and over, Female 65 years and over.
-LATCH is split into eight strata: Male <65 years, Female <65 years, Male 65-75 years, Female 65-75 years,Male 75-85 years, Female  75-85 years,Male 85 years and over, Female 85 years and over.
-
-### Data preparation
-
-First we filter LATCH to only those who survived 30 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
-
-### Event rates in LATCH
-
-Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample.@Greenland2004 Throughout, we simulate with 1000 samples. We plot the sample and show the event rates for each stratum in a table.
-
-The event rate is defined as:
-
-$$\lambda_u=\text{rate in untreated}$$
-We define $n_s$ as the number of people in each stratum, and $m_s$ as the number of events per stratum.
-
-$$\lambda_u=\frac{m_s}{\text{Total follow up time for stratum}}$$.
-
-As we are assuming an exponential distribution, we can calculate the standard error directly:
-
-$$ ln(SE)= \frac{1}{\sqrt{m_s}}$$.
-
-We then simulate a normally distributed sample for the event rates.
-
-### Calibrated RR and CIs for each stratum
-
-For each age/sex stratum and for each time period, we combine the rate in the untreated and the hazard ratio from the trial to obtain a risk ratio.
-
-Recall:
-
-$$\lambda_u=\text{rate in untreated}$$
-
-
-Multiply untreated rates by hazard ratios ($HR$) to get treated event rates in each time period:
-$$\lambda_{treat1} = \lambda_u \times HR_1$$
-$$\lambda_{treat2} = \lambda_u \times HR_2$$
-
-We then transform these to risks for each stratum:
-$$R_{untreated} = 1 - exp{(-\lambda_u(\tau_1+\tau_2)})$$ 
-
-and 
-
-$$R_{treated} = 1 - exp{(-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)})$$
-
-The risk ratio at the end of the trial for each stratum is then:
-
-$$ RR_S= \frac{R_{treated}}{R_{untreated}}$$
-  
-We simulate 1000 samples for each hazard ratio and event rate, to generate 1000 risk ratios.
-
-### Pooled risk ratio
-
-The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
-
-$$RR_{overall}= \sum_{s} RR_s n_s $$
-  
-  We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
-
-### Number needed to treat
-
-  We can use the new, calibrated risk ratio to estimate the number needed to treat (NNT) in the LATCH cohort from the absolute risk ratio (ARR). We use 1000 samples of the risk ratio, and generate confidence intervals.
-
-$$ARR = 1/(\lambda_u - \lambda_u \times RR_{overall})$$
-  
-  $$ \text{NNT} = 1/\text{ARR} $$
-
-## Results
-
-### LATCH data {.tabset}
-
-The table shows the number of events in LATCH for eight strata.
-
-```{r read in data, echo=FALSE, message=FALSE}
-latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 30 days.csv")
-setDT(latch_for_tridentx)
-latch_for_trident<- latch_for_tridentx[,c("survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
-#some dates are stored as excel formatted dates. 
-#for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
-latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
-
-#time to first event
-latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,i_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,i_date,  units="days")]
-
-# if no first event, time to end of death/ end study
-latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
-
-#censor status and survival time at 1.5 years, 4.5 years and all time
-latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
-
-# here we also define the survival times for competing risk of death, which we use in the extension below
-#create variable to say if has competing event
-#calculate time to competing event
-#censor: no death, or stroke before death from other cause.
-#provide interim count at t1
-
-#censor if had stroke/didn't die
-latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ]
-#time to event is: time to stroke (for people who had stroke); time to death (no stroke and died from other cause);  end of follow up. Coded using fcase.
-latch_for_trident[, time_to_comp_event := fcase(is.na(time_to_all_stroke)==F, time_to_all_stroke, is.na(date_of_death.y)==F& is.na(time_to_all_stroke)==T,difftime(date_of_death_trid, i_date, units="days"),default=difftime("2022-12-31", i_date, units="days"))]
-#provide interim count at t1
-latch_for_trident[, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
-
-
-strata<- list(
-latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
-latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
-latch_over_65_m<- latch_for_trident[age_index>64&Gender_t=="Male"],
-latch_over_65_f<- latch_for_trident[age_index>64& Gender_t=="Female"]
-
-)
-
-strata_n<- c()
-strata_n_events_t1<- c()
-strata_n_events_t2<- c()
-strata_fu_t1 <- c()
-strata_fu_t2<- c()
-strata_comp_n_events_t1 <- c()
-strata_comp_n_events_t2 <- c()
-strata_comp_fu_t1<- c()
-strata_comp_fu_t2 <- c()
-
-for(i in 1:length(strata)){
-strata_n[i] <-length(strata[[i]]$i_date) 
-strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
-strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
-strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
-strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
-
-strata_comp_n_events_t1[i]<- sum(strata[[i]]$comp_event_n_t1)
-strata_comp_n_events_t2[i]<- sum(strata[[i]]$comp_event_n_t2)
-strata_comp_fu_t1[i] <- sum(strata[[i]]$time_to_comp_event_t1)
-strata_comp_fu_t2[i]<- sum(strata[[i]]$time_to_comp_event_t2)
-
-
-}
-strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2, strata_comp_n_events_t1=strata_comp_n_events_t1, strata_comp_n_events_t2=strata_comp_n_events_t2, strata_comp_fu_t1=strata_comp_fu_t1, strata_comp_fu_t2=strata_comp_fu_t2)
-saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
-
-#alternative strata for competing risk
-
-strata_y<- list(
-latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
-latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
-latch_65_75_m<- latch_for_trident[age_index>64&age_index<75&Gender_t=="Male"],
-latch_65_75_f<- latch_for_trident[age_index>64&age_index<75& Gender_t=="Female"],
-latch_75_85_m<- latch_for_trident[age_index>74&age_index<85&Gender_t=="Male"],
-latch_75_85_f<- latch_for_trident[age_index>74&age_index<85& Gender_t=="Female"],
-latch_over_85_m<- latch_for_trident[age_index>84&Gender_t=="Male"],
-latch_over_85_f<- latch_for_trident[age_index>84& Gender_t=="Female"]
-
-)
-
-strata_y_n<- c()
-strata_y_n_events_t1<- c()
-strata_y_n_events_t2<- c()
-strata_y_fu_t1 <- c()
-strata_y_fu_t2<- c()
-strata_y_comp_n_events_t1 <- c()
-strata_y_comp_n_events_t2 <- c()
-strata_y_comp_fu_t1<- c()
-strata_y_comp_fu_t2 <- c()
-
-for(i in 1:length(strata_y)){
-strata_y_n[i] <-length(strata_y[[i]]$i_date) 
-strata_y_n_events_t1[i]<- sum(strata_y[[i]]$censor_all_str_t1)
-strata_y_n_events_t2[i]<- sum(strata_y[[i]]$censor_all_str_t2)
-strata_y_fu_t1[i] <- sum(strata_y[[i]]$survival_stroke_t1)
-strata_y_fu_t2[i]<- sum(strata_y[[i]]$survival_stroke_t2)
-
-strata_y_comp_n_events_t1[i]<- sum(strata_y[[i]]$comp_event_n_t1)
-strata_y_comp_n_events_t2[i]<- sum(strata_y[[i]]$comp_event_n_t2)
-strata_y_comp_fu_t1[i] <- sum(strata_y[[i]]$time_to_comp_event_t1)
-strata_y_comp_fu_t2[i]<- sum(strata_y[[i]]$time_to_comp_event_t2)
-
-
-}
-strata_y_vars<- list(strata_y_n=strata_y_n, strata_y_n_events_t1=strata_y_n_events_t1, strata_y_n_events_t2=strata_y_n_events_t2, strata_y_fu_t1=strata_y_fu_t1, strata_y_fu_t2=strata_y_fu_t2, strata_y_comp_n_events_t1=strata_y_comp_n_events_t1, strata_y_comp_n_events_t2=strata_y_comp_n_events_t2, strata_y_comp_fu_t1=strata_y_comp_fu_t1, strata_y_comp_fu_t2=strata_y_comp_fu_t2)
-
-#column names
-strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
-strata_y <-c("Male <65 years", "Female <65 years", "Male 65-75 years", "Female 65-75 years","Male 75-85 years", "Female  75-85 years","Male 85 years and over", "Female 85 years and over")
-```
-
-```{r tables of n events for different strata, results='asis'}
-
-strata_events <- do.call(cbind.data.frame, strata_y_vars)
-setDT(strata_events)
-strata_events <-strata_events[, strata_names:=strata_y][, c("strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
-strata_events<- cbind(strata_y, strata_events)
-colnames(strata_events)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
-
-ft <- flextable(strata_events)
-ft<- width(ft,width=dim_pretty(ft)$widths)
-
-flextable_to_rmd(ft)
-
-cat("\n\n")
-
-```
-
-### Event rates in LATCH {.tabset}
-
-```{r simple event rates}
-## Set number of samples with nrep for use throughout. 
-nrep<-1000
-
-#event rate at t1 and t2
-rate_est <- strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2*365.35*100
-log_rate_est <- log(strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2)
-
-# Calculate SE of the log-rate for untreated
-log_rate_se <- 1 / sqrt(strata_y_vars$strata_y_n_events_t2)
-
-## obtain and plot samples from rate in untreated
-untreated_rates<- as.data.frame(cbind(strata_y_vars$strata_y_n, rate_est,log_rate_est, log_rate_se))
-setDT(untreated_rates)
-log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
-
-#rename I column to the strata names
-
-log_lambda_u$I <- factor(log_lambda_u$I, levels=seq(1, length(strata_y)), labels=strata_y)
-
-#calculate confidence intervals for visualisation
-untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
-saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and below 65 years.rds")
-
-#round all the numbers
-untreated_rates_round<- round(untreated_rates,2)
-#make the rate and confidence intervals look nice in one column
-untreated_rates_round[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
-
-```
-
-#### Table of event rates for each stratum
-
-```{r table of rates}
-#print table of rates
-untreated_rates_round<- as.data.frame(untreated_rates_round)
-rownames(untreated_rates_round)<- strata_y
-
-
-colnames(untreated_rates_round) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
-
-
-ft_rates<- flextable(untreated_rates_round)
-
-ft_rates2 <- width(ft_rates,width=dim_pretty(ft_rates)$widths)
-ft_rates2
-```
-
-
-#### Plot of log event rates for each stratum
-```{r plot of event rates log,fig.width=8,fig.height=4}
-#plot to confirm normality
-ggplot(data=log_lambda_u)+
-geom_histogram(aes(x=V1), fill="#FCCDE5")+
-theme_bw()+
-facet_wrap(vars(I), nrow=2, ncol=4)+
-labs(title="Simulated log rates for strata 1-4")+ 
-xlab("")
-```
-
-
-### Hazard ratios for each stratum {.tabset}
-
-We have HR for <65 and >65years for each sex from the trial data. 
-
-
-```{r  hazard ratios trident}
-
-trident_hrs_4_strata <- read_excel("~/Documents/REA3 clinical fellow job/Treatment effect in trials/TRIDENT information/trident_hrs_4_strata.xlsx")
-setDT(trident_hrs_4_strata)
-hrs_t1 <- trident_hrs_4_strata[, c("rec_stroke_hr_t1", "rec_stroke_l_ci_t1", "rec_stroke_u_ci_t1")]
-hrs_t2 <- trident_hrs_4_strata[, c("rec_stroke_hr_t2", "rec_stroke_l_ci_t2", "rec_stroke_u_ci_t2")]
-colnames(hrs_t1) <- c("HR", "l_ci", "u_ci")
-colnames(hrs_t2) <- c("HR", "l_ci", "u_ci")
-
-### create extra rows for over 65 to go with 65-75, 75-85, over 85
-hrs_t1_over65 <-hrs_t1[3:4,] 
-hrs_t1<- rbind(hrs_t1,hrs_t1_over65 ,hrs_t1_over65)
-setDT(hrs_t1)
-
-hrs_t2_over65 <-hrs_t2[3:4,] 
-hrs_t2<- rbind(hrs_t2,hrs_t2_over65 ,hrs_t2_over65)
-setDT(hrs_t2)
-
-```
-
-#### Hazard ratio for period $\tau_1$
-```{r hr for t1}
-hrs_t1_for_tab <-round(hrs_t1,2)
-hrs_t1_for_tab[, Stratum:= strata_y]
-
-hrs_t2_for_tab <-round(hrs_t2,2)
-hrs_t2_for_tab[, Stratum:= strata_y]
-
-ft_hr_t1<- flextable(hrs_t1_for_tab)
-ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
-ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
-ft_hr_t1_a
-
-```
-
-#### Hazard ratio for period $\tau_2$
-
-```{r hr for t2}
-ft_hr_t2<- flextable(hrs_t2_for_tab)
-ft_hr_t2<- set_header_labels(ft_hr_t2, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
-ft_hr_t2_a <- width(ft_hr_t2,width=dim_pretty(ft_hr_t2)$widths)
-ft_hr_t2_a
-```
-
-#### Histogram of log hazard ratios for strata 1-4, $\tau_1$
-
-```{r 1000 hrs, warnings=F,fig.width=8,fig.height=4}
-#obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
-setDT(hrs_t1)
-setDT(hrs_t2)
-hrs_t1[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-
-#simulate log hr for nrep samples.
-#create simulated hr for all strata
-log_hrs_t1_per_strata <- hrs_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-
-#rename I column to the strata names
-log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=seq(1, length(strata_y)), labels=strata_y)
-
-
-#plot to confirm normality
-ggplot(data=log_hrs_t1_per_strata)+
-geom_histogram(aes(x=V1), fill="#FCCDE5")+
-theme_bw()+
-facet_wrap(vars(I), nrow=2, ncol=4)+
-labs(title="Simulated log hazard ratios for strata, T1")+ 
-xlab("Log of hazard ratio")
-```
-
-#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$
-
-```{r hist hr t1 exponentiated,fig.width=8,fig.height=4}
-ggplot(data=log_hrs_t1_per_strata)+
-geom_histogram(aes(x=exp(V1)), fill="#FCCDE5")+
-theme_bw()+
-facet_wrap(vars(I), nrow=2, ncol=4)+
-labs(title="Simulated hazard ratios for strata, T1")+ 
-xlab("Hazard ratio")
-```
-
-#### Histogram of simulated log hazard ratios for strata, $\tau_2$
-
-```{r t2 hr hists,fig.width=8,fig.height=4}
-#repeat for t2 hazard ratios
-#create simulated hr for all strata
-log_hrs_t2_per_strata <- hrs_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-
-#rename I column to the strata names
-log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=seq(1, length(strata_y)), labels=strata_y)
-
-#plot to confirm normality
-ggplot(data=log_hrs_t2_per_strata)+
-geom_histogram(aes(x=V1), fill="#80B1D3")+
-theme_bw()+
-facet_wrap(vars(I), nrow=2, ncol=4)+
-labs(title="Simulated log hazard ratios for strata, T2")+ 
-xlab("Log of hazard ratio")
-```
-
-#### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ 
-
-```{r t2 hr exponentiated,fig.width=8,fig.height=4}
-ggplot(data=log_hrs_t2_per_strata)+
-geom_histogram(aes(x=exp(V1)), fill="#80B1D3")+
-theme_bw()+
-facet_wrap(vars(I), nrow=2, ncol=4)+
-labs(title="Simulated hazard ratios for strata, T2")+ 
-xlab("Hazard ratio")
-```
-
-### Calibrated rates and CIs for each stratum {.tabset}
-
-
-```{r risks treated and untreated 2}
-#set t1 and t2 in days
-t1<-548
-t2<- 4.5*365.25
-
-#lambda from parametric model above
-#lambda_u <- exp(z_lambda) 
-log_lambda_u_sim<- log_lambda_u$V1
-
-#for rate in treated, log lambda_t = log lambda_u + log hr
-log_lambda_t1_sim <- log_lambda_u_sim+log_hrs_t1_per_strata$V1
-log_lambda_t2_sim <- log_lambda_u_sim+log_hrs_t2_per_strata$V1
-
-#exponentiate to get rates
-lambda_u_sim <- exp(log_lambda_u_sim)
-lambda_t1_sim<- exp(log_lambda_t1_sim)
-lambda_t2_sim<- exp(log_lambda_t2_sim)
-
-#transform to risks
-risk_u1 <- 1-exp(-lambda_u_sim*t1)
-risk_t1 <- 1-exp(-lambda_t1_sim*t1)
-risk_u2 <- 1-exp(-lambda_u_sim*(t1+t2))
-risk_t2 <- 1-exp(-(lambda_t1_sim*t1+lambda_t2_sim*t2))
-risk_ratio_t1 <- risk_t1/risk_u1
-risk_ratio_t2 <- risk_t2/risk_u2
-
-risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t1))
-risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t2))
-
-rr_means_t1<- risk_ratio_for_plot_t1%>%
-  group_by(V1)%>%
-  summarize(means_t1=round(mean(risk_ratio_t1),3))
-
-rr_means_t2<- risk_ratio_for_plot_t2%>%
-  group_by(V1)%>%
-  summarize(means_t2=round(mean(risk_ratio_t2),3))
-
-```
-
-#### Simulated risk ratios for strata, $t_1$ 
-
-```{r risk plot t1,fig.width=8,fig.height=4}
-ggplot(data=risk_ratio_for_plot_t1)+
-  geom_histogram(aes(x=risk_ratio_t1), fill="#FCCDE5")+
-  geom_text(data=rr_means_t1, aes(x=1.25, y=1000, label= paste("Mean=",means_t1)), size=3)+
-  theme_bw()+
-  facet_wrap(vars(V1), nrow=2, ncol=4)+
-  labs(title=quote("Simulated risk ratios for strata, "* t[1]* "."))+ 
-  xlab("Risk ratio")
-```
-
-#### Risk ratios for strata 1-4, $t_2$
-
-```{r risk plot t2,fig.width=8,fig.height=4}
-ggplot(data=risk_ratio_for_plot_t2)+
-  geom_histogram(aes(x=risk_ratio_t2), fill="#80B1D3")+
-  geom_text(data=rr_means_t2, aes(x=1, y=1000, label= paste("Mean=",means_t2)), size=3)+
-  theme_bw()+
-  facet_wrap(vars(V1), nrow=2, ncol=4)+
-  labs(title= quote("Simulated risk ratios for strata 1-4, "* t[2]* "."))+ 
-  xlab("Risk ratio")
-
-```
-
-### Pooled risk ratio
-
-The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
-
-$$RR_{overall}= \sum_{s} RR_s n_s $$
-  
-  We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
-
-
-
-```{r pooling hrs}
-#matrix of risk ratios at t1, one column per stratum
-
-rr_t1<-matrix(risk_ratio_t1, ncol=length(strata_y))
-rr_t2<-matrix(risk_ratio_t2, ncol=length(strata_y))
-
-#matrix of ns in latch, one column per stratum
-strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n))
-ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep)))
-#create a vector of totals
-n_tot<- rowSums(ns)
-
-## calculate n x rr_mtrx (note that this is NOT matrix multiplication)
-#t1
-rn_t1 <- rowSums(rr_t1*ns)
-rr_tot_t1 <- rn_t1/n_tot
-cis_t1<- round(quantile(rr_tot_t1, probs = c(0.025, 0.975)),3)
-est_t1<- round(mean(rr_tot_t1),3)
-
-#t2
-rn_t2 <- rowSums(rr_t2*ns)
-rr_tot_t2 <- rn_t2/n_tot
-cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),3)
-est_t2<- round(mean(rr_tot_t2),3)
-```
-
-
-
-#### Calibrated risk ratio at the end of the trial, for the whole trial
-
-```{r t2 pooled results numerical, comment=NA}
-
-cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence interval ", cis_t2[1], "-", cis_t2[2], ").", sep=""))
-
-```
-
-\n
-\n
-```{r t2 pooled results,results="asis",fig.width=4,fig.height=3}
-
-ggplot(data=as.data.frame(rr_tot_t2))+
-  geom_histogram(aes(x=rr_tot_t2), fill="#80B1D3")+
-  theme_bw()+
-  labs(title=quote("Simulated risk ratio for the whole trial at "* t[2]* ".) "))+ 
-  xlab("Risk ratio")
-
-
-```
-
-### Number needed to treat
-
-
-  
-```{r absolute risks, comment=NA}
-#without simulation
-event_rate<- sum(strata_vars$strata_n_events_t2)/sum(strata_vars$strata_fu_t2)*365.25
-arr <- event_rate- event_rate*rr_tot_t2
-nnt <- 1/arr
-cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
-cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
-
-#with simulation
-# event_rate_sim<- lambda_u_sim*365.25
-# arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
-# nnt_sim<- 1/arr_sim
-# cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
-# cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
-
-cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
-# cat(paste(" Using simulation and our exponential model, the number needed to treat is ",round(mean(nnt_sim),2)," (95% CI ", round(cis_nnt_sim[1],2), " - ", round(cis_nnt_sim[2],2),").", sep=""))
-
-
-```
-
-
-
-## References
-
-<div id="refs"></div>
-  
-  
-  ## Appendix
-  
-  We pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
-
-```{r t1 pooled results printout, comment=NA}
-cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
-```
-
-\n
-\n
-
-```{r t1 pooled results,results="asis",fig.width=3,fig.height=2}
-ggplot(data=as.data.frame(rr_tot_t1))+
-  geom_histogram(aes(x=rr_tot_t1), fill="#FCCDE5")+
-  theme_bw()+
-  labs(title="Simulated risk ratio, T1")+ 
-  xlab("Risk ratio")
-
-```
-
-
-
-## Extension: absolute risks in the prescence of competing risks.
-
-In this section, we aim for a fuller calculation of absolute risk of recurrent stroke, taking into account competing risk of death from a non-stroke cause. People with intracerebral haemorrhage have a high mortality, and this might have a significant effect on the absolute efficacy of treatment for particular treatment groups. 
-
-We can identify death from a non-stroke cause in LATCH. TRIDENT also recorded this information.
-
-This section is organised as follows. 
-
-* We demonstrate that an exponential model is acceptable for modelling competing risk of death. 
-* We calculate rates of the competing event in LATCH for each stratum. 
-* We calculate event rates accounting for this competing risk, and plot these for each stratum. 
-* We plot and tabulate the absolute risk reduction for each stratum and overall. 
-* We state the important assumptions of the analysis.
-
-
-## Methods
-
-### Rates of competing event
-
-Assuming exponential event rate across $\tau_1$ and $\tau_2$, we calculate the event rate, the standard error, and simulate a normally distributed sample. The competing risk of death might not be independent of treatment with the study drug, since we would expect antihypertensives to reduce death from other cardiovascular causes.
-
-We therefore include a hazard ratio for the competing risk between the placebo arm and treatment arm, for $\text{t}_1$ and $\text{t}_2$ and for individual strata.
-
-
-### Calculate event rate accounting for competing risk
-
-
-The proportion event-free at each time point, taking into account competing risk of death, is:
-  
-  $$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$
-      
-      The cumulative incidence of the outcome event $i$ is then:
-      
-      $$ \text{cumulative incidence} = \text{proportion event-free} \times \lambda_i / (\lambda_i + \lambda_j)$$
-        
-        However, if the rate changes over time, the above formula doesn't work; instead, we calculate the cumulative incidence for each event directly. For two time periods with different hazard ratios, the cumulative incidence needs adjusting at the point the hazard ratio changes, by a constant $c$. For two time periods, $\tau_1 = (0,\text{t}_1)$ and $\tau_2 = (\text{t}_1+1, \text{t}_2)$, with rates $\lambda_{i1}$ and $\lambda_{i2}$:
-
-$$ c =-exp{(-\lambda_{i1} \text{t}_1}) - exp{(-\lambda_{i2}(\text{t}_1+1))} $$
-The cumulative incidence for times beyond $\text{t}_1+1$ is:
-
-$$\text{proportion event-free} = 1 - exp{(-\lambda_i2 t})-exp{(-\lambda_j  t}) +c $$
-As with the risk ratio analysis, I account for two time periods with different rates of outcome event.
-
-I will restate the major assumptions of this analysis:
-
-* Both the risk of recurrent stroke and the competing risk of death are adequately modelled as exponential distributions.
-* People in LATCH would be commenced on the study drug at 30 days post-stroke.
-
-## Results
-
-### Rates of competing event
-
-The table shows the event rates for each stratum in the untreated group and the treated group.
-
-```{r simple event rates comp}
-#event rate at t2 for each stratum, single value
-rate_comp_est <- strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2*365.35*100
-log_rate_comp_est <- log(strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2)
-
-# Calculate SE of the log-rate for untreated, save
-log_rate_comp_se <- 1 / sqrt(strata_y_vars$strata_y_comp_n_events_t2)
-
-## obtain and plot samples from rate in untreated. This does nrep samples for each row (the .I tells it to do for each row). The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows. 
-untreated_rates_comp<- as.data.frame(cbind(strata_y_vars$strata_y_n, rate_comp_est,log_rate_comp_est, log_rate_comp_se))
-setDT(untreated_rates_comp)
-log_lambda_u_comp<- untreated_rates_comp[,rnorm(nrep, mean=log_rate_comp_est, sd=log_rate_comp_se), by=.I]
-
-#rename I column to the strata names
-strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
-log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=seq(1, length(strata_y)), labels=strata_y)
-
-#calculate confidence intervals for visualisation
-untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
-saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata above and below 65 years.rds")
-
-#round all the numbers
-untreated_rates_comp_round<- round(untreated_rates_comp,2)
-#make the rate and confidence intervals look nice in one column
-untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_comp_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
-
-```
-
-
-```{r real competing event rate in rx arm}
-#get the real competing event rates from each arm.
-HR_comp_t1 <- trident_hrs_4_strata[, c("comp_hr_t1","comp_lci_t1","comp_uci_t1" )]
-HR_comp_t2 <- trident_hrs_4_strata[, c("comp_hr_t2","comp_lci_t2","comp_uci_t2" )]
-colnames(HR_comp_t1)<- c("HR", "l_ci", "u_ci")
-colnames(HR_comp_t2)<- c("HR", "l_ci", "u_ci")
-
-### create extra rows for over 65 to go with 65-75, 75-85, over 85
-HR_comp_t1_over65 <-HR_comp_t1[3:4,] 
-HR_comp_t1<- rbind(HR_comp_t1,HR_comp_t1_over65 ,HR_comp_t1_over65)
-setDT(HR_comp_t1)
-
-HR_comp_t2_over65 <-HR_comp_t2[3:4,] 
-HR_comp_t2<- rbind(HR_comp_t2,HR_comp_t2_over65 ,HR_comp_t2_over65)
-setDT(HR_comp_t2)
-
-# calculate the log hr, and log se from normal distribution formulae
-HR_comp_t1[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-HR_comp_t2[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-
-# simulate nrep samples. .I means, do each row nrep times. The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows. 
-log_hr_comp_t1<- HR_comp_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-log_hr_comp_t2<- HR_comp_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-
-#for each time period, generate a rate of competing risk in the treated.
-log_lambda_t_comp_t1 <- copy(log_lambda_u_comp)
-log_lambda_t_comp_t2 <- copy(log_lambda_u_comp)
-log_lambda_t_comp_t1[, log_rate_comp_t_est_t1:=V1+log_hr_comp_t1$V1 ][,V1:=NULL]
-log_lambda_t_comp_t2[, log_rate_comp_t_est_t2:=V1+log_hr_comp_t2$V1 ][,V1:=NULL]
-#harmonise names with untreated
-setnames(log_lambda_t_comp_t1, "log_rate_comp_t_est_t1", "V1")
-setnames(log_lambda_t_comp_t2, "log_rate_comp_t_est_t2", "V1")
-
-#calculate confidence intervals for visualisation
-conf_int_treated_t1 <- log_lambda_t_comp_t1[,quantile(V1, c(0.025,0.5,0.975)), by=I]
-conf_int_treated_t1[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))]
-
-conf_int_treated_t2 <- log_lambda_t_comp_t2[,quantile(V1, c(0.025,0.5,0.975)), by=I]
-conf_int_treated_t2[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))]
-
-#widen table
-treated_comp_t1 <-dcast(conf_int_treated_t1, I~cat, value.var = "V1")
-treated_comp_t1_x<- treated_comp_t1[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
-
-treated_comp_t2 <-dcast(conf_int_treated_t2, I~cat, value.var = "V1")
-treated_comp_t2_x<- treated_comp_t2[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
-
-# table of rates combined
-setDT(untreated_rates_comp_round)
-unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "rate_cis")]
-tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-setnames(unt_for_merge, "rate_cis", "Events per 100py, untreated")
-setnames(tr_comp_t1_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t1")
-setnames(tr_comp_t2_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t2")
-m_1<- merge(unt_for_merge, tr_comp_t1_for_m, by="Stratum")
-rates_comp_comb<- merge(m_1, tr_comp_t2_for_m, by="Stratum")
-rates_comp_comb$Stratum<- factor(rates_comp_comb$Stratum, levels=strata_y, ordered=T)
-rates_comp_comb<- rates_comp_comb%>% arrange(Stratum)
-rm(m_1, unt_for_merge, tr_comp_t1_for_m, tr_comp_t2_for_m)
-
-ft_rates_comp<- flextable(rates_comp_comb)
-ft_rates_comp <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
-ft_rates_comp
-
-
-```
-
-
-
-### Calculate event rates accounting for competing risk
-
-```{r calculate competing risk at T2 from DM code sim}
 #This function calculates the cumulative incidence accounting for competing risks.
 
 MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete.t1, rate.compete.t2, t1_times, t2_times){
@@ -873,10 +138,611 @@ df[,mean_both:= mean(V3,na.rm=T), by=index][,l_ci_both:=quantile(V3, probs=0.025
 df_new <- df[seq(1, nrow(df),nrep), ]
 df_new
 }
+
+
+  # <!-- word_document: -->
+  # <!-- toc: true -->
+```
+
+## Introduction
+
+### Purpose and scope of this document
+
+This is a brief report of the results of calibration of the TRIDENT trial to a population-based inception cohort. 
+The aim of this study is to calibrate the effect of a low-dose triple pill antihypertensive medication in people with ICH from the TRIDENT trial to a population-based cohort in Lothian, Scotland.
+
+The outcomes are:
+
+* A measure of relative effect, the risk ratio, calibrated to the Lothian population.
+* A measure of absolute effect, the number needed to treat, calibrated to the Lothian population.
+* A measure of absolute effect, the absolute risk reduction in the presence of competing risk of death, calibrated to the Lothian population.
+
+## Methods
+
+### Time period definitions
+
+We calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
+
+### Strata for analysis
+
+Following inspection of the overlap between LATCH and TRIDENT, the split is as follows:
+TRIDENT is split into four strata: Male <65 years, Female <65 years, Male 65 years and over, Female 65 years and over.
+LATCH is split into eight strata: Male <65 years, Female <65 years, Male 65-75 years, Female 65-75 years,Male 75-85 years, Female  75-85 years,Male 85 years and over, Female 85 years and over.
+
+### Data preparation
+
+First we filter LATCH to only those who survived 30 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
+
+### Event rates in LATCH
+
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample.@Greenland2004 Throughout, we simulate with 1000 samples. We plot the sample and show the event rates for each stratum in a table.
+
+The event rate is defined as:
+
+$$\lambda_u=\text{rate in untreated}$$
+We define $n_s$ as the number of people in each stratum, and $m_s$ as the number of events per stratum.
+
+$$\lambda_u=\frac{m_s}{\text{Total follow up time for stratum}}$$.
+
+As we are assuming an exponential distribution, we can calculate the standard error directly:
+
+$$ ln(SE)= \frac{1}{\sqrt{m_s}}$$
+
+We then simulate a normally distributed sample for the event rates.
+
+### Calibrated RR and CIs for each stratum
+
+For each age/sex stratum and for each time period, we combine the rate in the untreated and the hazard ratio from the trial to obtain a risk ratio.
+
+Recall:
+
+$$\lambda_u=\text{rate in untreated}$$
+
+
+Multiply untreated rates by hazard ratios ($HR$) to get treated event rates in each time period:
+$$\lambda_{treat1} = \lambda_u \times HR_1$$
+$$\lambda_{treat2} = \lambda_u \times HR_2$$
+
+We then transform these to risks for each stratum:
+$$R_{untreated} = 1 - exp{(-\lambda_u(\tau_1+\tau_2)})$$ 
+
+and 
+
+$$R_{treated} = 1 - exp{(-(\lambda_{treat1} \tau_1 + \lambda_{treat2} \tau_2)})$$
+
+The risk ratio at the end of the trial for each stratum is then:
+
+$$ RR_S= \frac{R_{treated}}{R_{untreated}}$$
+  
+We simulate 1000 samples for each hazard ratio and event rate, to generate 1000 risk ratios.
+
+### Pooled risk ratio
+
+The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
+
+$$RR_{overall}= \sum_{s} RR_s n_s $$
+  
+  We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
+
+### Number needed to treat
+
+We can use the new, calibrated risk ratio to estimate the number needed to treat (NNT) in the LATCH cohort from the absolute risk ratio (ARR). We use 1000 samples of the risk ratio, and generate confidence intervals.
+
+$$ARR = 1/(\lambda_u - \lambda_u \times RR_{overall})$$
+  
+  $$ \text{NNT} = 1/\text{ARR} $$
+
+### Absolute risk in the presence of competing risks
+
+People with intracerebral haemorrhage have a high mortality, and this might have a significant effect on the absolute efficacy of treatment for particular groups. We now take into account competing risk of death from a non-stroke cause.
+
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we calculate the event rate, the standard error, and simulate a normally distributed sample. 
+
+The competing risk of death might not be independent of treatment with the study drug, since we would expect antihypertensives to reduce death from other cardiovascular causes. We therefore perform two analysis; first, with no effect on competing risk of the study drug; and second, we include a hazard ratio for the competing risk between the placebo arm and treatment arm, for $\text{t}_1$ and $\text{t}_2$ and for individual strata.
+
+
+### Calculate event rate accounting for competing risk
+
+The proportion event-free at each time point, taking into account competing risk of death, is:
+  
+  $$\text{proportion event-free} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$
+      
+The cumulative incidence of the outcome event $i$ is then:
+      
+  $$ \text{cumulative incidence} = \text{proportion event-free} \times \lambda_i / (\lambda_i + \lambda_j)$$
+        
+However, if the rate changes over time, the above formula doesn't work; instead, we calculate the cumulative incidence for each event directly. For two time periods with different hazard ratios, the cumulative incidence needs adjusting at the point the hazard ratio changes, by a constant $c$. For two time periods, $\tau_1 = (0,\text{t}_1)$ and $\tau_2 = (\text{t}_1+1, \text{t}_2)$, with rates $\lambda_{i1}$ and $\lambda_{i2}$:
+
+$$ c =-exp{(-\lambda_{i1} \text{t}_1}) - exp{(-\lambda_{i2}(\text{t}_1+1))} $$
+The cumulative incidence for times beyond $\text{t}_1+1$ is:
+
+$$\text{proportion event-free} = 1 - exp{(-\lambda_i2 t})-exp{(-\lambda_j  t}) +c $$
+As with the risk ratio analysis, I account for two time periods with different rates of outcome event.
+
+We assume that:
+
+* Both the risk of recurrent stroke and the competing risk of death are adequately modelled as exponential distributions.
+* People in LATCH are commenced on the study drug at 30 days post-stroke.
+
+## Results
+
+### LATCH data {.tabset}
+
+#### Event numbers at T1 and T2
+
+The table shows the number of recurrent stroke events and non-stroke death events in LATCH for eight strata.
+
+```{r read in data, echo=FALSE, message=FALSE}
+latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 30 days.csv")
+setDT(latch_for_tridentx)
+latch_for_trident<- latch_for_tridentx[,c("survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
+#some dates are stored as excel formatted dates. 
+#for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
+latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
+
+#time to first event
+latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,i_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,i_date,  units="days")]
+
+# if no first event, time to end of death/ end study
+latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
+
+#censor status and survival time at 1.5 years, 4.5 years and all time
+latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
+
+# here we also define the survival times for competing risk of death, which we use in the extension below
+#create variable to say if has competing event
+#calculate time to competing event
+#censor: no death, or stroke before death from other cause.
+#provide interim count at t1
+
+#censor if had stroke/didn't die
+latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ]
+#time to event is: time to stroke (for people who had stroke); time to death (no stroke and died from other cause);  end of follow up. Coded using fcase.
+latch_for_trident[, time_to_comp_event := fcase(is.na(time_to_all_stroke)==F, time_to_all_stroke, is.na(date_of_death.y)==F& is.na(time_to_all_stroke)==T,difftime(date_of_death_trid, i_date, units="days"),default=difftime("2022-12-31", i_date, units="days"))]
+#provide interim count at t1
+latch_for_trident[, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+
+strata<- list(
+latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
+latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
+latch_over_65_m<- latch_for_trident[age_index>64&Gender_t=="Male"],
+latch_over_65_f<- latch_for_trident[age_index>64& Gender_t=="Female"]
+)
+
+strata_n<- c()
+strata_n_events_t1<- c()
+strata_n_events_t2<- c()
+strata_fu_t1 <- c()
+strata_fu_t2<- c()
+strata_comp_n_events_t1 <- c()
+strata_comp_n_events_t2 <- c()
+strata_comp_fu_t1<- c()
+strata_comp_fu_t2 <- c()
+
+for(i in 1:length(strata)){
+strata_n[i] <-length(strata[[i]]$i_date) 
+strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
+strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
+strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
+strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
+
+strata_comp_n_events_t1[i]<- sum(strata[[i]]$comp_event_n_t1)
+strata_comp_n_events_t2[i]<- sum(strata[[i]]$comp_event_n_t2)
+strata_comp_fu_t1[i] <- sum(strata[[i]]$time_to_comp_event_t1)
+strata_comp_fu_t2[i]<- sum(strata[[i]]$time_to_comp_event_t2)
+
+
+}
+strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2, strata_comp_n_events_t1=strata_comp_n_events_t1, strata_comp_n_events_t2=strata_comp_n_events_t2, strata_comp_fu_t1=strata_comp_fu_t1, strata_comp_fu_t2=strata_comp_fu_t2)
+saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
+
+#alternative strata for competing risk
+strata_y<- list(
+latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
+latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
+latch_65_75_m<- latch_for_trident[age_index>64&age_index<75&Gender_t=="Male"],
+latch_65_75_f<- latch_for_trident[age_index>64&age_index<75& Gender_t=="Female"],
+latch_75_85_m<- latch_for_trident[age_index>74&age_index<85&Gender_t=="Male"],
+latch_75_85_f<- latch_for_trident[age_index>74&age_index<85& Gender_t=="Female"],
+latch_over_85_m<- latch_for_trident[age_index>84&Gender_t=="Male"],
+latch_over_85_f<- latch_for_trident[age_index>84& Gender_t=="Female"]
+)
+
+strata_y_n<- c()
+strata_y_n_events_t1<- c()
+strata_y_n_events_t2<- c()
+strata_y_fu_t1 <- c()
+strata_y_fu_t2<- c()
+strata_y_comp_n_events_t1 <- c()
+strata_y_comp_n_events_t2 <- c()
+strata_y_comp_fu_t1<- c()
+strata_y_comp_fu_t2 <- c()
+
+for(i in 1:length(strata_y)){
+strata_y_n[i] <-length(strata_y[[i]]$i_date) 
+strata_y_n_events_t1[i]<- sum(strata_y[[i]]$censor_all_str_t1)
+strata_y_n_events_t2[i]<- sum(strata_y[[i]]$censor_all_str_t2)
+strata_y_fu_t1[i] <- sum(strata_y[[i]]$survival_stroke_t1)
+strata_y_fu_t2[i]<- sum(strata_y[[i]]$survival_stroke_t2)
+
+strata_y_comp_n_events_t1[i]<- sum(strata_y[[i]]$comp_event_n_t1)
+strata_y_comp_n_events_t2[i]<- sum(strata_y[[i]]$comp_event_n_t2)
+strata_y_comp_fu_t1[i] <- sum(strata_y[[i]]$time_to_comp_event_t1)
+strata_y_comp_fu_t2[i]<- sum(strata_y[[i]]$time_to_comp_event_t2)
+}
+strata_y_vars<- list(strata_y_n=strata_y_n, strata_y_n_events_t1=strata_y_n_events_t1, strata_y_n_events_t2=strata_y_n_events_t2, strata_y_fu_t1=strata_y_fu_t1, strata_y_fu_t2=strata_y_fu_t2, strata_y_comp_n_events_t1=strata_y_comp_n_events_t1, strata_y_comp_n_events_t2=strata_y_comp_n_events_t2, strata_y_comp_fu_t1=strata_y_comp_fu_t1, strata_y_comp_fu_t2=strata_y_comp_fu_t2)
+
+#column names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+strata_y <-c("Male <65 years", "Female <65 years", "Male 65-75 years", "Female 65-75 years","Male 75-85 years", "Female  75-85 years","Male 85 years and over", "Female 85 years and over")
 ```
 
 
-```{r loop through strata for arr, results='asis'}
+```{r tables of n events for different strata, results='asis'}
+
+strata_events <- do.call(cbind.data.frame, strata_y_vars)
+setDT(strata_events)
+strata_events <-strata_events[, strata_names:=strata_y][, c("strata_y_n", "strata_y_n_events_t1", "strata_y_n_events_t2","strata_y_comp_n_events_t1", "strata_y_comp_n_events_t2")]
+strata_events<- cbind(strata_y, strata_events)
+colnames(strata_events)<- c("Stratum", "N in strata", "Recurrent stroke by t1","Recurrent stroke by t2","Competing events by t1","Competing events by t2" )
+
+ft <- flextable(strata_events)
+ft<- width(ft,width=dim_pretty(ft)$widths)
+
+flextable_to_rmd(ft)
+
+cat("\n\n")
+
+```
+
+#### Event rates in LATCH over whole study time
+
+```{r simple event rates}
+## Set number of samples with nrep for use throughout. 
+nrep<-1000
+
+#event rate at t1 and t2
+rate_est <- strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2*365.35*100
+log_rate_est <- log(strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2)
+
+# Calculate SE of the log-rate for untreated
+log_rate_se <- 1 / sqrt(strata_y_vars$strata_y_n_events_t2)
+
+## obtain and plot samples from rate in untreated
+untreated_rates<- as.data.frame(cbind(strata_y_vars$strata_y_n, rate_est,log_rate_est, log_rate_se))
+setDT(untreated_rates)
+log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), by=.I]
+
+#rename I column to the strata names
+
+log_lambda_u$I <- factor(log_lambda_u$I, levels=seq(1, length(strata_y)), labels=strata_y)
+
+#calculate confidence intervals for visualisation
+untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
+saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and below 65 years.rds")
+
+#round all the numbers
+untreated_rates_round<- round(untreated_rates,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates_round[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")", sep="")][, c("log_rate_est","rate_est","lower_ci","upper_ci","log_est","log_rate_se" ):= NULL][,Stratum:= strata_y ]
+setnames(untreated_rates_round, c("V1", "rate_cis"), c("Recurrent stroke (n)","Rate of recurrent stroke per 100py (95%CI)"))
+
+## competing risk rates
+#event rate at t2 for each stratum, single value
+rate_comp_est <- strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2*365.35*100
+log_rate_comp_est <- log(strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2)
+
+# Calculate SE of the log-rate for untreated, save
+log_rate_comp_se <- 1 / sqrt(strata_y_vars$strata_y_comp_n_events_t2)
+
+## obtain and plot samples from rate in untreated. This does nrep samples for each row (the .I tells it to do for each row). The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows. 
+untreated_rates_comp<- as.data.frame(cbind(strata_y_vars$strata_y_n, rate_comp_est,log_rate_comp_est, log_rate_comp_se))
+setDT(untreated_rates_comp)
+log_lambda_u_comp<- untreated_rates_comp[,rnorm(nrep, mean=log_rate_comp_est, sd=log_rate_comp_se), by=.I]
+
+#rename I column to the strata names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=seq(1, length(strata_y)), labels=strata_y)
+
+#calculate confidence intervals for visualisation
+untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
+saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata above and below 65 years.rds")
+
+#round all the numbers
+untreated_rates_comp_round<- round(untreated_rates_comp,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][, c("rate_comp_est","lower_ci","upper_ci","log_rate_comp_est","log_rate_comp_se" ):= NULL][,Stratum:= strata_y ]
+setnames(untreated_rates_comp_round, c("V1", "rate_cis"), c("Non-stroke death (n)", "Rate of non-stroke death per 100py (95%CI)"))
+
+```
+
+
+```{r table of rates}
+#print table of rates
+
+untreated_rates_all<- merge(untreated_rates_round, untreated_rates_comp_round, by="Stratum")
+untreated_rates_all<- as.data.frame(untreated_rates_all)
+
+
+ft_rates<- flextable(untreated_rates_all)
+
+ft_rates2 <- width(ft_rates,width=dim_pretty(ft_rates)$widths)
+ft_rates2
+
+```
+
+
+<!-- #### Plot of log event rates for each stratum -->
+<!-- ```{r plot of event rates log,fig.width=8,fig.height=4} -->
+<!-- #plot to confirm normality -->
+<!-- ggplot(data=log_lambda_u)+ -->
+<!--   geom_histogram(aes(x=V1), fill="#FCCDE5")+ -->
+<!--   theme_bw()+ -->
+<!--   facet_wrap(vars(I), nrow=2, ncol=4)+ -->
+<!--   labs(title="Simulated log rates for strata 1-4")+  -->
+<!--   xlab("") -->
+<!-- ``` -->
+
+
+### Hazard ratios for each stratum {.tabset}
+
+These hazard ratios are extracted from TRIDENT.
+
+```{r  hazard ratios trident}
+trident_hrs_4_strata <- read_excel("~/Documents/REA3 clinical fellow job/Treatment effect in trials/TRIDENT information/trident_hrs_4_strata.xlsx")
+setDT(trident_hrs_4_strata)
+hrs_t1 <- trident_hrs_4_strata[, c("rec_stroke_hr_t1", "rec_stroke_l_ci_t1", "rec_stroke_u_ci_t1")]
+hrs_t2 <- trident_hrs_4_strata[, c("rec_stroke_hr_t2", "rec_stroke_l_ci_t2", "rec_stroke_u_ci_t2")]
+colnames(hrs_t1) <- c("HR", "l_ci", "u_ci")
+colnames(hrs_t2) <- c("HR", "l_ci", "u_ci")
+
+### create extra rows for over 65 to go with 65-75, 75-85, over 85
+hrs_t1_over65 <-hrs_t1[3:4,] 
+hrs_t1<- rbind(hrs_t1,hrs_t1_over65 ,hrs_t1_over65)
+setDT(hrs_t1)
+
+hrs_t2_over65 <-hrs_t2[3:4,] 
+hrs_t2<- rbind(hrs_t2,hrs_t2_over65 ,hrs_t2_over65)
+setDT(hrs_t2)
+
+```
+
+#### Hazard ratio for period $\tau_1$
+```{r hr for t1}
+hrs_t1_for_tab <-round(hrs_t1,2)
+
+hrs_t1_for_tab[, Stratum:= strata_y][, "HR (95%CI) T1":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci"):=NULL ]
+
+hrs_t2_for_tab <-round(hrs_t2,2)
+hrs_t2_for_tab[, Stratum:= strata_y][, "HR (95%CI) T2":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci"):=NULL ]
+
+hrs_both_times_tab<- merge(hrs_t1_for_tab, hrs_t2_for_tab, by="Stratum")
+ft_hr_t1<- flextable(hrs_both_times_tab)
+ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
+ft_hr_t1_a
+
+
+
+```
+
+<!-- #### Histogram of log hazard ratios for strata 1-4, $\tau_1$ -->
+
+```{r 1000 hrs, warnings=F,fig.width=8,fig.height=4}
+#obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
+setDT(hrs_t1)
+setDT(hrs_t2)
+hrs_t1[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+
+#simulate log hr for nrep samples.
+#create simulated hr for all strata
+log_hrs_t1_per_strata <- hrs_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
+
+#rename I column to the strata names
+log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=seq(1, length(strata_y)), labels=strata_y)
+
+#plot to confirm normality
+# ggplot(data=log_hrs_t1_per_strata)+
+#   geom_histogram(aes(x=V1), fill="#FCCDE5")+
+#   theme_bw()+
+#   facet_wrap(vars(I), nrow=2, ncol=4)+
+#   labs(title="Simulated log hazard ratios for strata, T1")+
+#   xlab("Log of hazard ratio")
+```
+
+<!-- #### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ -->
+
+```{r hist hr t1 exponentiated,fig.width=8,fig.height=4}
+# ggplot(data=log_hrs_t1_per_strata)+
+#   geom_histogram(aes(x=exp(V1)), fill="#FCCDE5")+
+#   theme_bw()+
+#   facet_wrap(vars(I), nrow=2, ncol=4)+
+#   labs(title="Simulated hazard ratios for strata, T1")+
+#   xlab("Hazard ratio")
+```
+
+<!-- #### Histogram of simulated log hazard ratios for strata, $\tau_2$ -->
+
+```{r t2 hr hists,fig.width=8,fig.height=4}
+ #repeat for t2 hazard ratios 
+#create simulated hr for all strata
+log_hrs_t2_per_strata <- hrs_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
+
+ #rename I column to the strata names
+log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=seq(1, length(strata_y)), labels=strata_y)
+
+# #plot to confirm normality
+# ggplot(data=log_hrs_t2_per_strata)+
+#   geom_histogram(aes(x=V1), fill="#80B1D3")+
+#   theme_bw()+
+#   facet_wrap(vars(I), nrow=2, ncol=4)+
+#   labs(title="Simulated log hazard ratios for strata, T2")+
+#   xlab("Log of hazard ratio")
+```
+
+<!-- #### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ -->
+
+```{r t2 hr exponentiated,fig.width=8,fig.height=4}
+# ggplot(data=log_hrs_t2_per_strata)+
+  # geom_histogram(aes(x=exp(V1)), fill="#80B1D3")+
+  # theme_bw()+
+  # facet_wrap(vars(I), nrow=2, ncol=4)+
+  # labs(title="Simulated hazard ratios for strata, T2")+
+  # xlab("Hazard ratio")
+```
+
+### Calibrated rates and CIs for each stratum {.tabset}
+
+The histograms show the spread of risk ratio for 1000 simulated samples, at t1 and t2. I have marked on the mean for each stratum.
+
+```{r risks treated and untreated 2}
+#set t1 and t2 in days
+t1<-548
+t2<- 4.5*365.25
+
+#lambda from parametric model above
+#lambda_u <- exp(z_lambda) 
+log_lambda_u_sim<- log_lambda_u$V1
+
+#for rate in treated, log lambda_t = log lambda_u + log hr
+log_lambda_t1_sim <- log_lambda_u_sim+log_hrs_t1_per_strata$V1
+log_lambda_t2_sim <- log_lambda_u_sim+log_hrs_t2_per_strata$V1
+
+#exponentiate to get rates
+lambda_u_sim <- exp(log_lambda_u_sim)
+lambda_t1_sim<- exp(log_lambda_t1_sim)
+lambda_t2_sim<- exp(log_lambda_t2_sim)
+
+#transform to risks
+risk_u1 <- 1-exp(-lambda_u_sim*t1)
+risk_t1 <- 1-exp(-lambda_t1_sim*t1)
+risk_u2 <- 1-exp(-lambda_u_sim*(t1+t2))
+risk_t2 <- 1-exp(-(lambda_t1_sim*t1+lambda_t2_sim*t2))
+risk_ratio_t1 <- risk_t1/risk_u1
+risk_ratio_t2 <- risk_t2/risk_u2
+
+risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t1))
+risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t2))
+
+rr_means_t1<- risk_ratio_for_plot_t1%>%
+  group_by(V1)%>%
+  summarize(means_t1=round(mean(risk_ratio_t1),3))
+  
+rr_means_t2<- risk_ratio_for_plot_t2%>%
+  group_by(V1)%>%
+  summarize(means_t2=round(mean(risk_ratio_t2),3))
+
+```
+
+#### Risk ratios for strata, $t_1$
+
+```{r risk plot t1,fig.width=8,fig.height=4}
+ggplot(data=risk_ratio_for_plot_t1)+
+  geom_histogram(aes(x=risk_ratio_t1),breaks = seq(0, 4, by = 0.1), fill="#FCCDE5")+
+  geom_text(data=rr_means_t1, aes(x=means_t1+1, y=100, label= paste("Mean=",means_t1)), size=3)+
+  theme_bw()+
+  geom_vline(aes(xintercept = means_t1, colour=V1), linewidth=0.5, linetype="dashed", data=rr_means_t1)+
+  facet_wrap(vars(V1), nrow=2, ncol=4)+
+  labs(title=quote("Simulated risk ratios for strata, "* t[1]* "."))+
+  xlab("Risk ratio")+
+  ylab("Number of samples")+
+  xlim(c(0,4))+
+  ylim(c(0,150))
+
+```
+
+
+#### Risk ratios for strata 1-4, $t_2$
+
+```{r risk plot t2,fig.width=8,fig.height=4}
+ggplot(data=risk_ratio_for_plot_t2)+
+  geom_histogram(aes(x=risk_ratio_t2), fill="#80B1D3")+
+  geom_text(data=rr_means_t2, aes(x=means_t2+1, y=100, label= paste("Mean=",means_t2)), size=3)+
+  theme_bw()+
+  geom_vline(aes(xintercept = means_t2, colour=V1), linewidth=0.5, linetype="dashed", data=rr_means_t2)+
+  facet_wrap(vars(V1), nrow=2, ncol=4)+
+  labs(title= quote("Simulated risk ratios for strata 1-4, "* t[2]* "."))+
+  xlab("Risk ratio")
+
+```
+
+### Pooled risk ratio
+
+```{r pooling hrs}
+#matrix of risk ratios at t1, one column per stratum
+
+rr_t1<-matrix(risk_ratio_t1, ncol=length(strata_y))
+rr_t2<-matrix(risk_ratio_t2, ncol=length(strata_y))
+
+#matrix of ns in latch, one column per stratum
+strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n))
+ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep)))
+#create a vector of totals
+n_tot<- rowSums(ns)
+
+## calculate n x rr_mtrx (note that this is NOT matrix multiplication)
+#t1
+rn_t1 <- rowSums(rr_t1*ns)
+rr_tot_t1 <- rn_t1/n_tot
+cis_t1<- round(quantile(rr_tot_t1, probs = c(0.025, 0.975)),3)
+est_t1<- round(mean(rr_tot_t1),3)
+
+#t2
+rn_t2 <- rowSums(rr_t2*ns)
+rr_tot_t2 <- rn_t2/n_tot
+cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),3)
+est_t2<- round(mean(rr_tot_t2),3)
+```
+
+#### Calibrated risk ratio at the end of the trial, for the whole trial
+
+```{r t2 pooled results numerical, comment=NA}
+
+cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence interval ", cis_t2[1], "-", cis_t2[2], ").", sep=""))
+
+```
+\n
+\n
+```{r t2 pooled results,results="asis",fig.width=4,fig.height=3}
+
+ggplot(data=as.data.frame(rr_tot_t2))+
+  geom_histogram(aes(x=rr_tot_t2), fill="#80B1D3")+
+  theme_bw()+
+  labs(title=quote("Simulated risk ratio for the whole trial at "* t[2]* ". "))+ 
+  geom_vline(aes(xintercept = est_t2), linewidth=0.5, linetype="dashed")+
+  xlab("Risk ratio")+  
+  ylab("n samples")+
+  geom_text(data=rr_means_t1, aes(x=est_t2+0.16, y=75, label= paste("RR=",est_t1," (95%CI ", cis_t2[1], "-", cis_t2[2], ")", sep="")), size=3)
+
+
+
+```
+
+### Number needed to treat
+  
+```{r absolute risks, comment=NA}
+#without simulation
+event_rate<- sum(strata_vars$strata_n_events_t2)/sum(strata_vars$strata_fu_t2)*365.25
+arr <- event_rate- event_rate*rr_tot_t2
+nnt <- 1/arr
+cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
+cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
+
+#with simulation
+# event_rate_sim<- lambda_u_sim*365.25
+# arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
+# nnt_sim<- 1/arr_sim
+# cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
+# cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
+
+cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
+
+```
+
+### Competing event analysis: assuming no difference in non-stroke death between treatment and placebo arm
+
+```{r loop through strata for arr comp 1, results='asis'}
 
 #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
 
@@ -884,289 +750,6 @@ t1_times <- seq(0, 548, 1)
 t2_times <- seq(549, 365.25*6, 1)
 all_times <- c(t1_times, t2_times)
 
-pl_2 <- list()
-pl_2_cis <- list()
-tx_2 <- list()
-tx_2_cis <- list()
-
-arr_2 <- list()
-rr_2 <- list()
-or_2<- list()
-
-for(i in 1:length(strata_y)){
-
-  # Placebo arm
-pl_2[[i]] <- MakeCumulative2(arm="u",
-                       rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                       rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                       rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                       rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                       t1_times,
-                       t2_times)
-pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
-
-# Treatment arm
-tx_2[[i]] <- MakeCumulative2 (arm = "rx",
-                        rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
-                        rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
-                        rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]),
-                        rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]),
-                        t1_times,
-                        t2_times)
-tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
-## Calculate comparisons
-arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
-rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
-or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
-
-}
-
-
-```
-
-### Plots of outcomes {.tabset}
-
-These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
-
-#### Recurrent stroke outcome 
-
-```{r plots of outcomes, fig.width=12, fig.height=6, results='asis'}
-plots_rec_str<- list()
-arms_x1<- list()
-for(i in 1:length(strata_y)){
-  
-  arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
-                      tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
-  
-  ## Create plots
-  setDT(arms_x1[[i]])
-  plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
-  geom_line()+
-  #geom_point()+
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
-  theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-  ggtitle(paste(strata_y[i]))+
-  guides(color="none")+
-  labs(fill="Arm")
-}
-
-(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
-
-```
-
-#### Competing outcome (none-stroke death) 
-
-```{r competing outcome plots,fig.width=12, fig.height=6, results='asis'}
-plots_comp = list()
-for(i in 1:length(strata_y)){
-  
-  arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
-                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
-  ## set upper limit on upper ci of 1 so it plots properly
-  
-  arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-  ## Create plots
-  plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-  geom_line()+
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-  theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-  ggtitle(paste(strata_y[i]))+
-  guides(color="none")+
-  labs(fill="Arm")
-
-
-}
-
-(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
-
-```
-
-#### Recurrent stroke, accounting for competing risk of none-stroke death 
-
-```{r both outcome plots,fig.width=12, fig.height=6,  results='asis'}
-
-plot_both= list()
-for(i in 1:length(strata_y)){
-  
-  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-  
-  
-  ## set upper limit on upper ci of 1 so it plots properly
-  
-  arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-  ## Create plots
-  plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-  geom_line()+
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-  theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-  ggtitle(paste(strata_y[i]))+
-  guides(color="none")+
-  labs(fill="Arm")
-
-}
-
-(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
-
-```
-
-### Absolute risk reduction {.tabset}
-
-These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death.
-
-```{r format ARR, results='asis'}
-#create dataframes and tables of arr and event rates in each arm, for each stratum
-arr_cis<- list() 
-for(i in 1:length(strata_y)){
-  
-  arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
-  setDT(arr_cis[[i]])
-  arr_cis[[i]][, time:= all_times]
-  arr_cis_select<- arr_cis[[i]][time %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
-  arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
-  
-  colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
-  
-  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-                 tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-  
-  setDT(arms_x3)
-  arms3_select <- arms_x3[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
-  abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
-  abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
-  colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
-  
-  arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
-  ft<- flextable(arr_and_individ)
-  ft<- width(ft,width=dim_pretty(ft)$widths)
-  
-  cat(paste0('#### ', strata_y[i], '\n\n'))
-  
-  flextable_to_rmd(ft)
-  
-  cat("\n\n")
-}
-```
-#### Overall
-
-```{r arr in one table, results='asis'}
-
-#calculate ARR for whole cohort
-#matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day.
-arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE]))
-
-arr_flat<-matrix(arr_per_strata, ncol=length(strata_y))
-
-#matrix of ns in latch, one column per stratum
-strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n))
-ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times))))
-#create a vector of totals
-n_tot<- rowSums(ns)
-
-arr_n <- rowSums(arr_flat*ns)
-arr_n_tot <- as.data.frame(arr_n/n_tot)
-
-setDT(arr_n_tot)
-arr_n_tot[, index:=rep(all_times, each=nrep)]
-
-#Group by index then work out quantiles. Use data.table
-arr_n_tot[,mean_both:= (mean(`arr_n/n_tot`,na.rm=T)*100), by=index][,l_ci_both:=(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100),by=index][, u_ci_both:=(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100), by=index]
-
-#select every nrep row
-arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ]
-
-#a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now.
-
-arr_rel_cols<- list()
-for(i in 1: length(strata_y)){
-setDT(arr_cis[[i]])
-arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata_y[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both]
-}
-
-arr_all <- do.call(rbind.data.frame, arr_rel_cols)
-#we want to add in rows for the combined weighted total. First harmonise column names
-
-arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
-setnames(arr_comb_1, "index", "time")
-
-arr_all_comb<- rbind(arr_all, arr_comb_1)
-
-### table at various time points
-arr_select <- arr_n_tot_new[index %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][, `arr_n/n_tot`:=NULL]
-colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
-
-ft_comb<- flextable(round(arr_select,1))
-ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths)
-
-ft_comb
-```
-
-### Plots {.tabset}
-
-#### Plot of ARR for each strata
-
-```{r plot sep, fig.height=4, fig.width=12}
-#strata separately
-ggplot(data=arr_all)+
-  geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-  geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-  facet_wrap(facets="strata", ncol=4, nrow=2)+
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Absolute risk reduction (%)") +
-  scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  theme_bw()+
-  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
-  labs(color="Stratum")
-
-ggsave("ARR plots with varying competing risks/Real competing risk ratios, separate.png")
-```
-
-#### Plot of ARR for each strata
-
-```{r plot overall, results='asis', fig.height=4, fig.width=9}
-
-#all on one plot
-p_real <- ggplot(data=arr_all)+
-  geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
-  geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
-  geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Absolute risk reduction (%)") +
-  scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  theme_bw()+
-  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
-  labs(color="Stratum")
-p_real
-ggsave("ARR plots with varying competing risks/Real competing risk ratios, combined.png")
-
-```
-
-## Sensitivity analyses
-
-
-The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with three different competing risk hazard ratios: 1; 0.9 (95%CI 0.7-1.1); and 0.8 (0.6-1.8).
-
-
-### No difference in competing risk
-
-```{r loop through strata for arr comp 1, results='asis'}
-
-#We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
 pl_2 <- list()
 pl_2_cis <- list()
 tx_2 <- list()
@@ -1203,11 +786,15 @@ or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
 
 }
 
-
 ```
 
+#### Plots of outcomes {.tabset}
 
-```{r plots of outcomes comp 1, fig.width=12, fig.height=6, results='hide'}
+These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
+
+##### Recurrent stroke outcome 
+
+```{r plots of outcomes comp 1, fig.width=12, fig.height=6, results='asis'}
 plots_rec_str<- list()
 arms_x1<- list()
 for(i in 1:length(strata_y)){
@@ -1231,10 +818,11 @@ for(i in 1:length(strata_y)){
       labs(fill="Arm")
 }
 
-#(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
+(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
 
 ```
 
+##### Competing risk outcome 
 
 ```{r competing outcome plots comp 1,fig.width=12, fig.height=6, results='hide'}
 plots_comp = list()
@@ -1263,6 +851,7 @@ plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = a
 
 ```
 
+##### Recurrent stroke, accounting for competing risk of non-stroke death 
 
 ```{r both outcome plots comp 1,fig.width=12, fig.height=6,  results='hide'}
 
@@ -1291,7 +880,7 @@ for(i in 1:length(strata_y)){
 
 }
 
-#(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
+(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
 
 ```
 
@@ -1307,7 +896,7 @@ for(i in 1:length(strata_y)){
   arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
   setDT(arr_cis[[i]])
   arr_cis[[i]][, time:= all_times]
-  arr_cis_select<- arr_cis[[i]][time %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
+  arr_cis_select<- arr_cis[[i]][time %in% times_for_tables][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
   arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
   
   colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
@@ -1316,7 +905,7 @@ for(i in 1:length(strata_y)){
                  tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
   
   setDT(arms_x3)
-  arms3_select <- arms_x3[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
+  arms3_select <- arms_x3[obs.times %in% times_for_tables]
   abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
   abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
   colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
@@ -1378,7 +967,7 @@ setnames(arr_comb_1, "index", "time")
 arr_all_comb<- rbind(arr_all, arr_comb_1)
 
 ### table at various time points
-arr_select <- arr_n_tot_new[index %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][, `arr_n/n_tot`:=NULL]
+arr_select <- arr_n_tot_new[index %in% times_for_tables][, `arr_n/n_tot`:=NULL]
 colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
 
 ft_comb<- flextable(round(arr_select,1))
@@ -1389,28 +978,7 @@ ft_comb
 
 #### Plots {.tabset}
 
-##### Plot of ARR for each strata
 
-Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death.
-```{r plot sep comp 1, fig.height=4, fig.width=12}
-#strata separately
-ggplot(data=arr_all)+
-geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-facet_wrap(facets="strata", ncol=4, nrow=2)+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-             labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Absolute risk reduction (%)") +
-scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-theme_bw()+
-ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 1"))+
-labs(color="Stratum")
-
-
-ggsave("ARR plots with varying competing risks/Competing risk ratio 1, separate.png")
-
-```
 
 ##### Plot of ARR for each strata
 
@@ -1433,22 +1001,89 @@ ggsave("ARR plots with varying competing risks/Competing risk ratio 1, combined.
 
 ```
 
+##### Plot of ARR for each stratum separately
 
-### Small difference in competing risk (HR for competing risk = 0.9 (0.7-1.1))
+Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death.
+```{r plot sep comp 1, fig.height=4, fig.width=12}
+#strata separately
+ggplot(data=arr_all)+
+geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
+geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
+facet_wrap(facets="strata", ncol=4, nrow=2)+
+scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+             labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+scale_y_continuous ("Absolute risk reduction (%)") +
+scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+theme_bw()+
+ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 1"))+
+labs(color="Stratum")
 
-The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with no difference in competing risk between each arm. 
 
+ggsave("ARR plots with varying competing risks/Competing risk ratio 1, separate.png")
 
-```{r small comp risk difference}
+```
 
-# calculate the log hr, and log se from normal distribution formulae
+### Competing event analysis: assuming difference in non-stroke death between treatment and placebo arm using hazard ratios from TRIDENT data.
 
-HR_comp_t1<- data.frame(HR=0.9, l_ci=0.7, u_ci=1.1)
-HR_comp_t1<- HR_comp_t1[rep(seq_len(nrow(HR_comp_t1)), each=8),]
-HR_comp_t2<- copy(HR_comp_t1)
+#### Hazard ratios from TRIDENT data
+
+```{r table of TRIDENT HR}
+#get the real competing event rates from each arm.
+HR_comp_t1 <- trident_hrs_4_strata[, c("comp_hr_t1","comp_lci_t1","comp_uci_t1" )]
+HR_comp_t2 <- trident_hrs_4_strata[, c("comp_hr_t2","comp_lci_t2","comp_uci_t2" )]
+colnames(HR_comp_t1)<- c("HR", "l_ci", "u_ci")
+colnames(HR_comp_t2)<- c("HR", "l_ci", "u_ci")
+
+### create extra rows for over 65 to go with 65-75, 75-85, over 85
+HR_comp_t1_over65 <-HR_comp_t1[3:4,] 
+HR_comp_t1<- rbind(HR_comp_t1,HR_comp_t1_over65 ,HR_comp_t1_over65)
 setDT(HR_comp_t1)
+
+HR_comp_t2_over65 <-HR_comp_t2[3:4,] 
+HR_comp_t2<- rbind(HR_comp_t2,HR_comp_t2_over65 ,HR_comp_t2_over65)
 setDT(HR_comp_t2)
 
+### make version to print
+hrs_comp_t1_for_tab <-round(hrs_t1,2)
+
+hrs_comp_t1_for_tab<-hrs_comp_t1_for_tab[, Stratum:= strata_y][, "HR (95%CI) T1":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci", "log_se", "log_hr", "se"):=NULL ]
+
+hrs_comp_t2_for_tab <-round(hrs_t2,2)
+hrs_comp_t2_for_tab <- hrs_comp_t2_for_tab[, Stratum:= strata_y][, "HR (95%CI) T2":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci", "log_se", "log_hr", "se"):=NULL ]
+
+hrs_comp_both_times_tab<- merge(hrs_comp_t1_for_tab, hrs_comp_t2_for_tab, by="Stratum")
+
+hrs_comp_both_times_tab$Stratum<- factor(hrs_comp_both_times_tab$Stratum, levels=strata_y, ordered=T)
+hrs_comp_both_times_tab<- hrs_comp_both_times_tab%>%arrange(hrs_comp_both_times_tab, hrs_comp_both_times_tab$Stratum)
+
+ft_hr_t1<- flextable(hrs_comp_both_times_tab)
+#ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
+ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
+ft_hr_t1_a
+
+
+```
+
+#### Event rates for competing risk using hazard ratios from TRIDENT
+
+```{r real competing event rate in rx arm}
+#get the real competing event rates from each arm.
+HR_comp_t1 <- trident_hrs_4_strata[, c("comp_hr_t1","comp_lci_t1","comp_uci_t1" )]
+HR_comp_t2 <- trident_hrs_4_strata[, c("comp_hr_t2","comp_lci_t2","comp_uci_t2" )]
+colnames(HR_comp_t1)<- c("HR", "l_ci", "u_ci")
+colnames(HR_comp_t2)<- c("HR", "l_ci", "u_ci")
+
+### create extra rows for over 65 to go with 65-75, 75-85, over 85
+HR_comp_t1_over65 <-HR_comp_t1[3:4,] 
+HR_comp_t1<- rbind(HR_comp_t1,HR_comp_t1_over65 ,HR_comp_t1_over65)
+setDT(HR_comp_t1)
+
+HR_comp_t2_over65 <-HR_comp_t2[3:4,] 
+HR_comp_t2<- rbind(HR_comp_t2,HR_comp_t2_over65 ,HR_comp_t2_over65)
+setDT(HR_comp_t2)
+
+# calculate the log hr, and log se from normal distribution formulae
 HR_comp_t1[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
 HR_comp_t2[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
 
@@ -1475,31 +1110,34 @@ conf_int_treated_t2[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata
 #widen table
 treated_comp_t1 <-dcast(conf_int_treated_t1, I~cat, value.var = "V1")
 treated_comp_t1_x<- treated_comp_t1[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
+colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Rate of non-stroke death per 100py (95%CI)")
 
 treated_comp_t2 <-dcast(conf_int_treated_t2, I~cat, value.var = "V1")
 treated_comp_t2_x<- treated_comp_t2[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
+colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Rate of non-stroke death per 100py (95%CI)")
 
 # table of rates combined
 setDT(untreated_rates_comp_round)
-unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "rate_cis")]
-tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-setnames(unt_for_merge, "rate_cis", "Events per 100py, untreated")
-setnames(tr_comp_t1_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t1")
-setnames(tr_comp_t2_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t2")
+unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "Rate of non-stroke death per 100py (95%CI)")]
+tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Rate of non-stroke death per 100py (95%CI)")]
+tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Rate of non-stroke death per 100py (95%CI)")]
+#setnames(unt_for_merge, "rate_cis", "Rate of non-stroke death per 100py (95%CI)")
+setnames(tr_comp_t1_for_m, "Rate of non-stroke death per 100py (95%CI)", "Events per 100py, treated t1")
+setnames(tr_comp_t2_for_m, "Rate of non-stroke death per 100py (95%CI)", "Events per 100py, treated t2")
 m_1<- merge(unt_for_merge, tr_comp_t1_for_m, by="Stratum")
 rates_comp_comb<- merge(m_1, tr_comp_t2_for_m, by="Stratum")
 rates_comp_comb$Stratum<- factor(rates_comp_comb$Stratum, levels=strata_y, ordered=T)
 rates_comp_comb<- rates_comp_comb%>% arrange(Stratum)
 rm(m_1, unt_for_merge, tr_comp_t1_for_m, tr_comp_t2_for_m)
 
-
+ft_rates_comp<- flextable(rates_comp_comb)
+ft_rates_comp <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
+ft_rates_comp
 
 ```
 
-```{r loop through strata for arr comp small, results='asis'}
+
+```{r loop through strata for arr, results='asis'}
 
 #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
 pl_2 <- list()
@@ -1513,450 +1151,127 @@ or_2<- list()
 
 for(i in 1:length(strata_y)){
   # Placebo arm
-  pl_2[[i]] <- MakeCumulative2(arm="u",
-                         rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                         rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                         rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                         rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                         t1_times,
-                         t2_times)
-  pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
+pl_2[[i]] <- MakeCumulative2(arm="u",
+                       rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                       rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                       rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                       rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
+                       t1_times,
+                       t2_times)
+pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
+
+# Treatment arm
+tx_2[[i]] <- MakeCumulative2 (arm = "rx",
+                        rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
+                        rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
+                        rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]),
+                        rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]),
+                        t1_times,
+                        t2_times)
+tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
+## Calculate comparisons
+arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
+rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
+or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
+}
+
+```
+
+#### Plots of outcomes {.tabset}
+
+These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
+
+##### Recurrent stroke outcome 
+
+```{r plots of outcomes, fig.width=12, fig.height=6, results='asis'}
+plots_rec_str<- list()
+arms_x1<- list()
+for(i in 1:length(strata_y)){
   
-  # Treatment arm
-  tx_2[[i]] <- MakeCumulative2 (arm = "rx",
-                          rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
-                          rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
-                          rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]),
-                          rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]),
-                          t1_times,
-                          t2_times)
-  tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
-  ## Calculate comparisons
-  arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
-  rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
-  or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
-
-}
-
-
-```
-
-
-```{r plots of outcomes comp small, fig.width=12, fig.height=6, results='hide'}
-plots_rec_str<- list()
-arms_x1<- list()
-for(i in 1:length(strata_y)){
-
-arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
-                    tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
-
-## Create plots
-setDT(arms_x1[[i]])
-plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
-geom_line()+
-#geom_point()+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
-theme_bw()+
-theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-ggtitle(paste(strata_y[i]))+
-guides(color="none")+
-labs(fill="Arm")
-}
-
-#(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
-
-```
-
-
-```{r competing outcome plots comp small,fig.width=12, fig.height=6, results='hide'}
-plots_comp = list()
-for(i in 1:length(strata_y)){
-    
-    arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
-                   tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
-    ## set upper limit on upper ci of 1 so it plots properly
-    
-    arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-    ## Create plots
-    plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-    geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-    geom_line()+
-    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                   labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-    scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-    theme_bw()+
-    theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-    ggtitle(paste(strata_y[i]))+
-    guides(color="none")+
-    labs(fill="Arm")
-}
-
-#(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
-
-```
-
-
-```{r both outcome plots comp small,fig.width=12, fig.height=6,  results='hide'}
-
-plot_both= list()
-for(i in 1:length(strata_y)){
-
-    arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-                   tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-    
-    
-    ## set upper limit on upper ci of 1 so it plots properly
-    
-    arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-    ## Create plots
-    plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-    geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-    geom_line()+
-    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                   labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-    scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-    theme_bw()+
-    theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-    ggtitle(paste(strata_y[i]))+
-    guides(color="none")+
-    labs(fill="Arm")
-
-}
-
-#(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
-
-```
-
-#### Absolute risk reduction {.tabset}
-
-These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death.
-
-```{r format ARR comp small, results='asis'}
-#create dataframes and tables of arr and event rates in each arm, for each stratum
-arr_cis<- list() 
-for(i in 1:length(strata_y)){
-
-arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
-setDT(arr_cis[[i]])
-arr_cis[[i]][, time:= all_times]
-arr_cis_select<- arr_cis[[i]][time %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
-arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
-
-colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
-
-arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-               tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-
-setDT(arms_x3)
-arms3_select <- arms_x3[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
-abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
-abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
-colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
-
-arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
-ft<- flextable(arr_and_individ)
-ft<- width(ft,width=dim_pretty(ft)$widths)
-
-cat(paste0('##### ', strata_y[i], '\n\n'))
-
-flextable_to_rmd(ft)
-
-cat("\n\n")
-}
-```
-
-##### Overall
-
-```{r arr in one table comp small, results='asis'}
-
-#calculate ARR for whole cohort
-#matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day.
-arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE]))
-
-arr_flat<-matrix(arr_per_strata, ncol=length(strata_y))
-
-#matrix of ns in latch, one column per stratum
-strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n))
-ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times))))
-#create a vector of totals
-n_tot<- rowSums(ns)
-
-arr_n <- rowSums(arr_flat*ns)
-arr_n_tot <- as.data.frame(arr_n/n_tot)
-
-setDT(arr_n_tot)
-arr_n_tot[, index:=rep(all_times, each=nrep)]
-
-#Group by index then work out quantiles. Use data.table
-arr_n_tot[,mean_both:= (mean(`arr_n/n_tot`,na.rm=T)*100), by=index][,l_ci_both:=(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100),by=index][, u_ci_both:=(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100), by=index]
-
-#select every nrep row
-arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ]
-
-#a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now.
-
-arr_rel_cols<- list()
-for(i in 1: length(strata_y)){
-setDT(arr_cis[[i]])
-arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata_y[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both]
-}
-
-arr_all <- do.call(rbind.data.frame, arr_rel_cols)
-#we want to add in rows for the combined weighted total. First harmonise column names
-
-arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
-setnames(arr_comb_1, "index", "time")
-
-arr_all_comb<- rbind(arr_all, arr_comb_1)
-
-### table at various time points
-arr_select <- arr_n_tot_new[index %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][, `arr_n/n_tot`:=NULL]
-colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
-
-ft_comb<- flextable(round(arr_select,1))
-ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths)
-
-ft_comb
-```
-
-#### Plots {.tabset}
-
-##### Plot of ARR for each strata
-
-Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death.
-```{r plot sep comp small, fig.height=4, fig.width=12}
-#strata separately
-    ggplot(data=arr_all)+
-        geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-        geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-        facet_wrap(facets="strata", ncol=4, nrow=2)+
-        scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                     labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-        scale_y_continuous ("Absolute risk reduction (%)") +
-        scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-        scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-        theme_bw()+
-        ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.9"))+
-        labs(color="Stratum")
-    ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, separate.png")
-```
-
-##### Plot of ARR for each strata
-
-```{r plot overall comp small, results='asis', fig.height=4, fig.width=9}
-#all on one plot
-p_9<- ggplot(data=arr_all)+
-    geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
-    geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
-    geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
-    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+  arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
+                      tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
+  
+  ## Create plots
+  setDT(arms_x1[[i]])
+  plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  #geom_point()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-    scale_y_continuous ("Absolute risk reduction (%)") +
-    scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-    theme_bw()+
-    ggtitle(paste("Absolute risk reduction of recurrent stroke,HR for competing risk of death = 0.9"))+
-    labs(color="Stratum")
-p_9
-ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, combined.png")
-```
-
-
-### Small difference in competing risk (HR for competing risk = 0.8 (0.6-1.0))
-
-The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with no difference in competing risk between each arm. 
-
-
-```{r small comp risk difference 8}
-
-# calculate the log hr, and log se from normal distribution formulae
-
-HR_comp_t1<- data.frame(HR=0.8, l_ci=0.6, u_ci=1.0)
-HR_comp_t1<- HR_comp_t1[rep(seq_len(nrow(HR_comp_t1)), each=8),]
-HR_comp_t2<- copy(HR_comp_t1)
-setDT(HR_comp_t1)
-setDT(HR_comp_t2)
-
-HR_comp_t1[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-HR_comp_t2[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
-
-# simulate nrep samples. .I means, do each row nrep times. The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows. 
-log_hr_comp_t1<- HR_comp_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-log_hr_comp_t2<- HR_comp_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I]
-
-#for each time period, generate a rate of competing risk in the treated.
-log_lambda_t_comp_t1 <- copy(log_lambda_u_comp)
-log_lambda_t_comp_t2 <- copy(log_lambda_u_comp)
-log_lambda_t_comp_t1[, log_rate_comp_t_est_t1:=V1+log_hr_comp_t1$V1 ][,V1:=NULL]
-log_lambda_t_comp_t2[, log_rate_comp_t_est_t2:=V1+log_hr_comp_t2$V1 ][,V1:=NULL]
-#harmonise names with untreated
-setnames(log_lambda_t_comp_t1, "log_rate_comp_t_est_t1", "V1")
-setnames(log_lambda_t_comp_t2, "log_rate_comp_t_est_t2", "V1")
-
-#calculate confidence intervals for visualisation
-conf_int_treated_t1 <- log_lambda_t_comp_t1[,quantile(V1, c(0.025,0.5,0.975)), by=I]
-conf_int_treated_t1[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))]
-
-conf_int_treated_t2 <- log_lambda_t_comp_t2[,quantile(V1, c(0.025,0.5,0.975)), by=I]
-conf_int_treated_t2[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))]
-
-#widen table
-treated_comp_t1 <-dcast(conf_int_treated_t1, I~cat, value.var = "V1")
-treated_comp_t1_x<- treated_comp_t1[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
-
-treated_comp_t2 <-dcast(conf_int_treated_t2, I~cat, value.var = "V1")
-treated_comp_t2_x<- treated_comp_t2[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL]
-colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)")
-
-# table of rates combined
-setDT(untreated_rates_comp_round)
-unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "rate_cis")]
-tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Events per 100 person years (95% CI)")]
-setnames(unt_for_merge, "rate_cis", "Events per 100py, untreated")
-setnames(tr_comp_t1_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t1")
-setnames(tr_comp_t2_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t2")
-m_1<- merge(unt_for_merge, tr_comp_t1_for_m, by="Stratum")
-rates_comp_comb<- merge(m_1, tr_comp_t2_for_m, by="Stratum")
-rates_comp_comb$Stratum<- factor(rates_comp_comb$Stratum, levels=strata_y, ordered=T)
-rates_comp_comb<- rates_comp_comb%>% arrange(Stratum)
-rm(m_1, unt_for_merge, tr_comp_t1_for_m, tr_comp_t2_for_m)
-
-
-
-```
-
-```{r loop through strata for arr comp 8, results='asis'}
-
-#We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
-pl_2 <- list()
-pl_2_cis <- list()
-tx_2 <- list()
-tx_2_cis <- list()
-
-arr_2 <- list()
-rr_2 <- list()
-or_2<- list()
-
-for(i in 1:length(strata_y)){
-    # Placebo arm
-    pl_2[[i]] <- MakeCumulative2(arm="u",
-                           rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                           rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
-                           rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                           rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]),
-                           t1_times,
-                           t2_times)
-    pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
-    
-    # Treatment arm
-    tx_2[[i]] <- MakeCumulative2 (arm = "rx",
-                            rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
-                            rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
-                            rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]),
-                            rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]),
-                            t1_times,
-                            t2_times)
-    tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
-    ## Calculate comparisons
-    arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
-    rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
-    or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
-
+  scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
 }
 
+(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
 
 ```
 
+##### Competing outcome (none-stroke death) 
 
-```{r plots of outcomes comp 8, fig.width=12, fig.height=6, results='hide'}
-plots_rec_str<- list()
-arms_x1<- list()
-for(i in 1:length(strata_y)){
-
-arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
-                    tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
-
-## Create plots
-setDT(arms_x1[[i]])
-plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
-geom_line()+
-#geom_point()+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
-theme_bw()+
-theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-ggtitle(paste(strata_y[i]))+
-guides(color="none")+
-labs(fill="Arm")
-}
-
-#(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
-
-```
-
-
-```{r competing outcome plots comp 8,fig.width=12, fig.height=6, results='hide'}
+```{r competing outcome plots,fig.width=12, fig.height=6, results='asis'}
 plots_comp = list()
 for(i in 1:length(strata_y)){
-    
-    arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
-                   tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
-    ## set upper limit on upper ci of 1 so it plots properly
-    
-    arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-    ## Create plots
-    plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-    geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-    geom_line()+
-    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                   labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-    scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-    theme_bw()+
-    theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-    ggtitle(paste(strata_y[i]))+
-    guides(color="none")+
-    labs(fill="Arm")
+  
+  arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
+  ## set upper limit on upper ci of 1 so it plots properly
+  
+  arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
+  ## Create plots
+  plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+
 }
 
-#(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
+(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
 
 ```
 
+##### Recurrent stroke, accounting for competing risk of none-stroke death 
 
-```{r both outcome plots comp 8,fig.width=12, fig.height=6,  results='hide'}
+```{r both outcome plots,fig.width=12, fig.height=6,  results='asis'}
 
 plot_both= list()
 for(i in 1:length(strata_y)){
-
-arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-               tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-
-
-## set upper limit on upper ci of 1 so it plots properly
-
-arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
-## Create plots
-plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
-geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
-geom_line()+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
-theme_bw()+
-theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
-ggtitle(paste(strata_y[i]))+
-guides(color="none")+
-labs(fill="Arm")
+  
+  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+  
+  
+  ## set upper limit on upper ci of 1 so it plots properly
+  
+  arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
+  ## Create plots
+  plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
 
 }
 
-#(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
+(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
 
 ```
 
@@ -1964,43 +1279,44 @@ labs(fill="Arm")
 
 These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death.
 
-```{r format ARR comp 8, results='asis'}
+```{r format ARR, results='asis'}
 #create dataframes and tables of arr and event rates in each arm, for each stratum
 arr_cis<- list() 
+
+
 for(i in 1:length(strata_y)){
-
-arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
-setDT(arr_cis[[i]])
-arr_cis[[i]][, time:= all_times]
-arr_cis_select<- arr_cis[[i]][time %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
-arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
-
-colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
-
-arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
-               tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
-
-setDT(arms_x3)
-arms3_select <- arms_x3[obs.times %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)]
-abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
-abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
-colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
-
-arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
-ft<- flextable(arr_and_individ)
-ft<- width(ft,width=dim_pretty(ft)$widths)
-
-cat(paste0('##### ', strata_y[i], '\n\n'))
-
-flextable_to_rmd(ft)
-
-cat("\n\n")
+  
+  arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
+  setDT(arr_cis[[i]])
+  arr_cis[[i]][, time:= all_times]
+  arr_cis_select<- arr_cis[[i]][time %in% times_for_tables][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
+  arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
+  
+  colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
+  
+  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+  
+  setDT(arms_x3)
+  arms3_select <- arms_x3[obs.times %in% times_for_tables]
+  abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
+  abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
+  colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
+  
+  arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
+  ft<- flextable(arr_and_individ)
+  ft<- width(ft,width=dim_pretty(ft)$widths)
+  
+  cat(paste0('##### ', strata_y[i], '\n\n'))
+  
+  flextable_to_rmd(ft)
+  
+  cat("\n\n")
 }
 ```
-
 ##### Overall
 
-```{r arr in one table comp 8, results='asis'}
+```{r arr in one table, results='asis'}
 
 #calculate ARR for whole cohort
 #matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day.
@@ -2043,7 +1359,7 @@ setnames(arr_comb_1, "index", "time")
 arr_all_comb<- rbind(arr_all, arr_comb_1)
 
 ### table at various time points
-arr_select <- arr_n_tot_new[index %in% c(0, 30, 90, 183, 365, 548, 365*2, 365*3, 365*4, 365*5, 365*6)][, `arr_n/n_tot`:=NULL]
+arr_select <- arr_n_tot_new[index %in% times_for_tables][, `arr_n/n_tot`:=NULL]
 colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
 
 ft_comb<- flextable(round(arr_select,1))
@@ -2054,47 +1370,741 @@ ft_comb
 
 #### Plots {.tabset}
 
+
 ##### Plot of ARR for each strata
 
-Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death.
-```{r plot sep comp 8, fig.height=4, fig.width=12}
+```{r plot overall, results='asis', fig.height=4, fig.width=9}
+
+#all on one plot
+p_real <- ggplot(data=arr_all)+
+  geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
+  geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
+  geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Absolute risk reduction (%)") +
+  scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+  theme_bw()+
+  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
+  labs(color="Stratum")
+p_real
+ggsave("ARR plots with varying competing risks/Real competing risk ratios, combined.png")
+
+```
+
+##### Plot of ARR for each stratum separately
+
+```{r plot sep, fig.height=4, fig.width=12}
 #strata separately
 ggplot(data=arr_all)+
-geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-facet_wrap(facets="strata", ncol=4, nrow=2)+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-             labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Absolute risk reduction (%)") +
-scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-theme_bw()+
-ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+
-labs(color="Stratum")
-ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, separate.png")
+  geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
+  geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
+  facet_wrap(facets="strata", ncol=4, nrow=2)+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Absolute risk reduction (%)") +
+  scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+  scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+  theme_bw()+
+  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
+  labs(color="Stratum")
+
+ggsave("ARR plots with varying competing risks/Real competing risk ratios, separate.png")
 ```
 
-##### Plot of ARR for each strata
+## References
+<div id="refs"></div>
+  
+## Appendix
+  
+  We pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
 
-```{r plot overall comp 8, results='asis', fig.height=4, fig.width=9}
-#all on one plot
-p_8 <- ggplot(data=arr_all)+
-    geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
-    geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
-    geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
-    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-    scale_y_continuous ("Absolute risk reduction (%)") +
-    scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-    theme_bw()+
-    ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+
-    labs(color="Stratum")
-p_8
-ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, combined.png")
+```{r t1 pooled results printout, comment=NA}
+cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
 ```
 
-#### Compare plots with different competing risks
+\n
+\n
 
-```{r combine plots with different CR, fig.height=6, fig.width=10}
-p_real+p_1+p_9+p_8+plot_layout(guides="collect", axes="collect")& theme(title=element_text(size=6), axis.title=element_text(size=8))
-```
+<!-- ```{r t1 pooled results,results="asis",fig.width=3,fig.height=2} -->
+<!-- ggplot(data=as.data.frame(rr_tot_t1))+ -->
+<!--   geom_histogram(aes(x=rr_tot_t1), fill="#FCCDE5")+ -->
+<!--   theme_bw()+ -->
+<!--   labs(title="Simulated risk ratio, T1")+ -->
+<!--   xlab("Risk ratio") -->
+
+<!-- ``` -->
+
+
+<!-- ## Sensitivity analysis -->
+
+<!-- ## Sensitivity analyses -->
+
+
+<!-- The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with three different competing risk hazard ratios: 1; 0.9 (95%CI 0.7-1.1); and 0.8 (0.6-1.8). -->
+
+
+<!-- ### Small difference in competing risk (HR for competing risk = 0.9 (0.7-1.1)) -->
+
+<!-- The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with no difference in competing risk between each arm.  -->
+
+
+<!-- ```{r small comp risk difference} -->
+
+<!-- # calculate the log hr, and log se from normal distribution formulae -->
+
+<!-- HR_comp_t1<- data.frame(HR=0.9, l_ci=0.7, u_ci=1.1) -->
+<!-- HR_comp_t1<- HR_comp_t1[rep(seq_len(nrow(HR_comp_t1)), each=8),] -->
+<!-- HR_comp_t2<- copy(HR_comp_t1) -->
+<!-- setDT(HR_comp_t1) -->
+<!-- setDT(HR_comp_t2) -->
+
+<!-- HR_comp_t1[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)] -->
+<!-- HR_comp_t2[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)] -->
+
+<!-- # simulate nrep samples. .I means, do each row nrep times. The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows.  -->
+<!-- log_hr_comp_t1<- HR_comp_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I] -->
+<!-- log_hr_comp_t2<- HR_comp_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I] -->
+
+<!-- #for each time period, generate a rate of competing risk in the treated. -->
+<!-- log_lambda_t_comp_t1 <- copy(log_lambda_u_comp) -->
+<!-- log_lambda_t_comp_t2 <- copy(log_lambda_u_comp) -->
+<!-- log_lambda_t_comp_t1[, log_rate_comp_t_est_t1:=V1+log_hr_comp_t1$V1 ][,V1:=NULL] -->
+<!-- log_lambda_t_comp_t2[, log_rate_comp_t_est_t2:=V1+log_hr_comp_t2$V1 ][,V1:=NULL] -->
+<!-- #harmonise names with untreated -->
+<!-- setnames(log_lambda_t_comp_t1, "log_rate_comp_t_est_t1", "V1") -->
+<!-- setnames(log_lambda_t_comp_t2, "log_rate_comp_t_est_t2", "V1") -->
+
+<!-- #calculate confidence intervals for visualisation -->
+<!-- conf_int_treated_t1 <- log_lambda_t_comp_t1[,quantile(V1, c(0.025,0.5,0.975)), by=I] -->
+<!-- conf_int_treated_t1[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))] -->
+
+<!-- conf_int_treated_t2 <- log_lambda_t_comp_t2[,quantile(V1, c(0.025,0.5,0.975)), by=I] -->
+<!-- conf_int_treated_t2[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))] -->
+
+<!-- #widen table -->
+<!-- treated_comp_t1 <-dcast(conf_int_treated_t1, I~cat, value.var = "V1") -->
+<!-- treated_comp_t1_x<- treated_comp_t1[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL] -->
+<!-- colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)") -->
+
+<!-- treated_comp_t2 <-dcast(conf_int_treated_t2, I~cat, value.var = "V1") -->
+<!-- treated_comp_t2_x<- treated_comp_t2[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL] -->
+<!-- colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)") -->
+
+<!-- # table of rates combined -->
+<!-- setDT(untreated_rates_comp_round) -->
+<!-- unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "rate_cis")] -->
+<!-- tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Events per 100 person years (95% CI)")] -->
+<!-- tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Events per 100 person years (95% CI)")] -->
+<!-- setnames(unt_for_merge, "rate_cis", "Events per 100py, untreated") -->
+<!-- setnames(tr_comp_t1_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t1") -->
+<!-- setnames(tr_comp_t2_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t2") -->
+<!-- m_1<- merge(unt_for_merge, tr_comp_t1_for_m, by="Stratum") -->
+<!-- rates_comp_comb<- merge(m_1, tr_comp_t2_for_m, by="Stratum") -->
+<!-- rates_comp_comb$Stratum<- factor(rates_comp_comb$Stratum, levels=strata_y, ordered=T) -->
+<!-- rates_comp_comb<- rates_comp_comb%>% arrange(Stratum) -->
+<!-- rm(m_1, unt_for_merge, tr_comp_t1_for_m, tr_comp_t2_for_m) -->
+
+
+
+<!-- ``` -->
+
+<!-- ```{r loop through strata for arr comp small, results='asis'} -->
+
+<!-- #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps. -->
+<!-- pl_2 <- list() -->
+<!-- pl_2_cis <- list() -->
+<!-- tx_2 <- list() -->
+<!-- tx_2_cis <- list() -->
+
+<!-- arr_2 <- list() -->
+<!-- rr_2 <- list() -->
+<!-- or_2<- list() -->
+
+<!-- for(i in 1:length(strata_y)){ -->
+<!--   # Placebo arm -->
+<!--   pl_2[[i]] <- MakeCumulative2(arm="u", -->
+<!--                          rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                          rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                          rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                          rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                          t1_times, -->
+<!--                          t2_times) -->
+<!--   pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times)) -->
+
+<!--   # Treatment arm -->
+<!--   tx_2[[i]] <- MakeCumulative2 (arm = "rx", -->
+<!--                           rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                           rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                           rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                           rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                           t1_times, -->
+<!--                           t2_times) -->
+<!--   tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times)) -->
+<!--   ## Calculate comparisons -->
+<!--   arr_2[[i]] = pl_2[[i]] - tx_2[[i]] -->
+<!--   rr_2[[i]] = tx_2[[i]]/pl_2[[i]] -->
+<!--   or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]])) -->
+
+<!-- } -->
+
+
+<!-- ``` -->
+
+
+<!-- ```{r plots of outcomes comp small, fig.width=12, fig.height=6, results='hide'} -->
+<!-- plots_rec_str<- list() -->
+<!-- arms_x1<- list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!-- arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main), -->
+<!--                     tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main)) -->
+
+<!-- ## Create plots -->
+<!-- setDT(arms_x1[[i]]) -->
+<!-- plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!-- geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) + -->
+<!-- geom_line()+ -->
+<!-- #geom_point()+ -->
+<!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!-- scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) + -->
+<!-- theme_bw()+ -->
+<!-- theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!-- ggtitle(paste(strata_y[i]))+ -->
+<!-- guides(color="none")+ -->
+<!-- labs(fill="Arm") -->
+<!-- } -->
+
+<!-- #(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r competing outcome plots comp small,fig.width=12, fig.height=6, results='hide'} -->
+<!-- plots_comp = list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!--     arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp), -->
+<!--                    tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp)) -->
+<!--     ## set upper limit on upper ci of 1 so it plots properly -->
+
+<!--     arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci)) -->
+<!--     ## Create plots -->
+<!--     plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!--     geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) + -->
+<!--     geom_line()+ -->
+<!--     scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                    labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--     scale_y_continuous ("Cumulative incidence", limits=c(0,1)) + -->
+<!--     theme_bw()+ -->
+<!--     theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!--     ggtitle(paste(strata_y[i]))+ -->
+<!--     guides(color="none")+ -->
+<!--     labs(fill="Arm") -->
+<!-- } -->
+
+<!-- #(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r both outcome plots comp small,fig.width=12, fig.height=6,  results='hide'} -->
+
+<!-- plot_both= list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!--     arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both), -->
+<!--                    tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both)) -->
+
+
+<!--     ## set upper limit on upper ci of 1 so it plots properly -->
+
+<!--     arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci)) -->
+<!--     ## Create plots -->
+<!--     plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!--     geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) + -->
+<!--     geom_line()+ -->
+<!--     scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                    labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--     scale_y_continuous ("Cumulative incidence", limits=c(0,1)) + -->
+<!--     theme_bw()+ -->
+<!--     theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!--     ggtitle(paste(strata_y[i]))+ -->
+<!--     guides(color="none")+ -->
+<!--     labs(fill="Arm") -->
+
+<!-- } -->
+
+<!-- #(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death") -->
+
+<!-- ``` -->
+
+<!-- #### Absolute risk reduction {.tabset} -->
+
+<!-- These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death. -->
+
+<!-- ```{r format ARR comp small, results='asis'} -->
+<!-- #create dataframes and tables of arr and event rates in each arm, for each stratum -->
+<!-- arr_cis<- list()  -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!-- arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times)) -->
+<!-- setDT(arr_cis[[i]]) -->
+<!-- arr_cis[[i]][, time:= all_times] -->
+<!-- arr_cis_select<- arr_cis[[i]][time %in% times_for_tables][,c("time","mean_both", "l_ci_both", "u_ci_both") ] -->
+<!-- arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)] -->
+
+<!-- colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)") -->
+
+<!-- arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both), -->
+<!--                tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both)) -->
+
+<!-- setDT(arms_x3) -->
+<!-- arms3_select <- arms_x3[obs.times %in% times_for_tables] -->
+<!-- abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per") -->
+<!-- abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)] -->
+<!-- colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)") -->
+
+<!-- arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)") -->
+<!-- ft<- flextable(arr_and_individ) -->
+<!-- ft<- width(ft,width=dim_pretty(ft)$widths) -->
+
+<!-- cat(paste0('##### ', strata_y[i], '\n\n')) -->
+
+<!-- flextable_to_rmd(ft) -->
+
+<!-- cat("\n\n") -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ##### Overall -->
+
+<!-- ```{r arr in one table comp small, results='asis'} -->
+
+<!-- #calculate ARR for whole cohort -->
+<!-- #matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day. -->
+<!-- arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE])) -->
+
+<!-- arr_flat<-matrix(arr_per_strata, ncol=length(strata_y)) -->
+
+<!-- #matrix of ns in latch, one column per stratum -->
+<!-- strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n)) -->
+<!-- ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times)))) -->
+<!-- #create a vector of totals -->
+<!-- n_tot<- rowSums(ns) -->
+
+<!-- arr_n <- rowSums(arr_flat*ns) -->
+<!-- arr_n_tot <- as.data.frame(arr_n/n_tot) -->
+
+<!-- setDT(arr_n_tot) -->
+<!-- arr_n_tot[, index:=rep(all_times, each=nrep)] -->
+
+<!-- #Group by index then work out quantiles. Use data.table -->
+<!-- arr_n_tot[,mean_both:= (mean(`arr_n/n_tot`,na.rm=T)*100), by=index][,l_ci_both:=(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100),by=index][, u_ci_both:=(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100), by=index] -->
+
+<!-- #select every nrep row -->
+<!-- arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ] -->
+
+<!-- #a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now. -->
+
+<!-- arr_rel_cols<- list() -->
+<!-- for(i in 1: length(strata_y)){ -->
+<!-- setDT(arr_cis[[i]]) -->
+<!-- arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata_y[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both] -->
+<!-- } -->
+
+<!-- arr_all <- do.call(rbind.data.frame, arr_rel_cols) -->
+<!-- #we want to add in rows for the combined weighted total. First harmonise column names -->
+
+<!-- arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"] -->
+<!-- setnames(arr_comb_1, "index", "time") -->
+
+<!-- arr_all_comb<- rbind(arr_all, arr_comb_1) -->
+
+<!-- ### table at various time points -->
+<!-- arr_select <- arr_n_tot_new[index %in% times_for_tables][, `arr_n/n_tot`:=NULL] -->
+<!-- colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)") -->
+
+<!-- ft_comb<- flextable(round(arr_select,1)) -->
+<!-- ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths) -->
+
+<!-- ft_comb -->
+<!-- ``` -->
+
+<!-- #### Plots {.tabset} -->
+
+<!-- ##### Plot of ARR for each strata -->
+
+<!-- Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death. -->
+<!-- ```{r plot sep comp small, fig.height=4, fig.width=12} -->
+<!-- #strata separately -->
+<!--     ggplot(data=arr_all)+ -->
+<!--         geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+ -->
+<!--         geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+  -->
+<!--         facet_wrap(facets="strata", ncol=4, nrow=2)+ -->
+<!--         scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                      labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--         scale_y_continuous ("Absolute risk reduction (%)") + -->
+<!--         scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!--         scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!--         theme_bw()+ -->
+<!--         ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.9"))+ -->
+<!--         labs(color="Stratum") -->
+<!--     ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, separate.png") -->
+<!-- ``` -->
+
+<!-- ##### Plot of ARR for each strata -->
+
+<!-- ```{r plot overall comp small, results='asis', fig.height=4, fig.width=9} -->
+<!-- #all on one plot -->
+<!-- p_9<- ggplot(data=arr_all)+ -->
+<!--     geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+ -->
+<!--     geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+ -->
+<!--     geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+  -->
+<!--     scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--     scale_y_continuous ("Absolute risk reduction (%)") + -->
+<!--     scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!--     theme_bw()+ -->
+<!--     ggtitle(paste("Absolute risk reduction of recurrent stroke,HR for competing risk of death = 0.9"))+ -->
+<!--     labs(color="Stratum") -->
+<!-- p_9 -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, combined.png") -->
+<!-- ``` -->
+
+
+<!-- ### Small difference in competing risk (HR for competing risk = 0.8 (0.6-1.0)) -->
+
+<!-- The confidence intervals were wide for the competing risk, so may not be valid. We therefore rerun with no difference in competing risk between each arm.  -->
+
+
+<!-- ```{r small comp risk difference 8} -->
+
+<!-- # calculate the log hr, and log se from normal distribution formulae -->
+
+<!-- HR_comp_t1<- data.frame(HR=0.8, l_ci=0.6, u_ci=1.0) -->
+<!-- HR_comp_t1<- HR_comp_t1[rep(seq_len(nrow(HR_comp_t1)), each=8),] -->
+<!-- HR_comp_t2<- copy(HR_comp_t1) -->
+<!-- setDT(HR_comp_t1) -->
+<!-- setDT(HR_comp_t2) -->
+
+<!-- HR_comp_t1[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)] -->
+<!-- HR_comp_t2[,log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)] -->
+
+<!-- # simulate nrep samples. .I means, do each row nrep times. The output is nrep rows for each stratum, so rows 1:nrep are stratum 1, (nrep+1:2*nrep) are stratum 2, etc. This can be confirmed by checking the mean of each chunk of rows.  -->
+<!-- log_hr_comp_t1<- HR_comp_t1[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I] -->
+<!-- log_hr_comp_t2<- HR_comp_t2[,rnorm(nrep, mean=log_hr, sd=log_se), by=.I] -->
+
+<!-- #for each time period, generate a rate of competing risk in the treated. -->
+<!-- log_lambda_t_comp_t1 <- copy(log_lambda_u_comp) -->
+<!-- log_lambda_t_comp_t2 <- copy(log_lambda_u_comp) -->
+<!-- log_lambda_t_comp_t1[, log_rate_comp_t_est_t1:=V1+log_hr_comp_t1$V1 ][,V1:=NULL] -->
+<!-- log_lambda_t_comp_t2[, log_rate_comp_t_est_t2:=V1+log_hr_comp_t2$V1 ][,V1:=NULL] -->
+<!-- #harmonise names with untreated -->
+<!-- setnames(log_lambda_t_comp_t1, "log_rate_comp_t_est_t1", "V1") -->
+<!-- setnames(log_lambda_t_comp_t2, "log_rate_comp_t_est_t2", "V1") -->
+
+<!-- #calculate confidence intervals for visualisation -->
+<!-- conf_int_treated_t1 <- log_lambda_t_comp_t1[,quantile(V1, c(0.025,0.5,0.975)), by=I] -->
+<!-- conf_int_treated_t1[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))] -->
+
+<!-- conf_int_treated_t2 <- log_lambda_t_comp_t2[,quantile(V1, c(0.025,0.5,0.975)), by=I] -->
+<!-- conf_int_treated_t2[, cat:= rep(c("Lower CI", "Mean", "Upper CI"), length(strata_y))] -->
+
+<!-- #widen table -->
+<!-- treated_comp_t1 <-dcast(conf_int_treated_t1, I~cat, value.var = "V1") -->
+<!-- treated_comp_t1_x<- treated_comp_t1[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL] -->
+<!-- colnames(treated_comp_t1_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)") -->
+
+<!-- treated_comp_t2 <-dcast(conf_int_treated_t2, I~cat, value.var = "V1") -->
+<!-- treated_comp_t2_x<- treated_comp_t2[, "Rate per 100 person/years":=paste(round(exp(Mean)*100*365.25,2), " (",round(exp(`Lower CI`)*100*365.25,2), " - ",round(exp(`Upper CI`)*100*365.25,2),")", sep="") ][, "Lower CI":=NULL][, "Upper CI":=NULL] -->
+<!-- colnames(treated_comp_t2_x) <- c( "Stratum",  "log(rate/day)","Events per 100 person years (95% CI)") -->
+
+<!-- # table of rates combined -->
+<!-- setDT(untreated_rates_comp_round) -->
+<!-- unt_for_merge <- untreated_rates_comp_round[, Stratum:=strata_y][, c("Stratum", "rate_cis")] -->
+<!-- tr_comp_t1_for_m<- treated_comp_t1_x[, c("Stratum", "Events per 100 person years (95% CI)")] -->
+<!-- tr_comp_t2_for_m<- treated_comp_t2_x[, c("Stratum", "Events per 100 person years (95% CI)")] -->
+<!-- setnames(unt_for_merge, "rate_cis", "Events per 100py, untreated") -->
+<!-- setnames(tr_comp_t1_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t1") -->
+<!-- setnames(tr_comp_t2_for_m, "Events per 100 person years (95% CI)", "Events per 100py, treated t2") -->
+<!-- m_1<- merge(unt_for_merge, tr_comp_t1_for_m, by="Stratum") -->
+<!-- rates_comp_comb<- merge(m_1, tr_comp_t2_for_m, by="Stratum") -->
+<!-- rates_comp_comb$Stratum<- factor(rates_comp_comb$Stratum, levels=strata_y, ordered=T) -->
+<!-- rates_comp_comb<- rates_comp_comb%>% arrange(Stratum) -->
+<!-- rm(m_1, unt_for_merge, tr_comp_t1_for_m, tr_comp_t2_for_m) -->
+
+
+
+<!-- ``` -->
+
+<!-- ```{r loop through strata for arr comp 8, results='asis'} -->
+
+<!-- #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps. -->
+<!-- pl_2 <- list() -->
+<!-- pl_2_cis <- list() -->
+<!-- tx_2 <- list() -->
+<!-- tx_2_cis <- list() -->
+
+<!-- arr_2 <- list() -->
+<!-- rr_2 <- list() -->
+<!-- or_2<- list() -->
+
+<!-- for(i in 1:length(strata_y)){ -->
+<!--     # Placebo arm -->
+<!--     pl_2[[i]] <- MakeCumulative2(arm="u", -->
+<!--                            rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                            rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                            rate.compete.t1 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                            rate.compete.t2 = exp(log_lambda_u_comp[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                            t1_times, -->
+<!--                            t2_times) -->
+<!--     pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times)) -->
+
+<!--     # Treatment arm -->
+<!--     tx_2[[i]] <- MakeCumulative2 (arm = "rx", -->
+<!--                             rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                             rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)], -->
+<!--                             rate.compete.t1 = exp(log_lambda_t_comp_t1[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                             rate.compete.t2 = exp(log_lambda_t_comp_t2[(nrep*(i-1)+1):(i*nrep),2]), -->
+<!--                             t1_times, -->
+<!--                             t2_times) -->
+<!--     tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times)) -->
+<!--     ## Calculate comparisons -->
+<!--     arr_2[[i]] = pl_2[[i]] - tx_2[[i]] -->
+<!--     rr_2[[i]] = tx_2[[i]]/pl_2[[i]] -->
+<!--     or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]])) -->
+
+<!-- } -->
+
+
+<!-- ``` -->
+
+
+<!-- ```{r plots of outcomes comp 8, fig.width=12, fig.height=6, results='hide'} -->
+<!-- plots_rec_str<- list() -->
+<!-- arms_x1<- list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!-- arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main), -->
+<!--                     tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main)) -->
+
+<!-- ## Create plots -->
+<!-- setDT(arms_x1[[i]]) -->
+<!-- plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!-- geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) + -->
+<!-- geom_line()+ -->
+<!-- #geom_point()+ -->
+<!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!-- scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) + -->
+<!-- theme_bw()+ -->
+<!-- theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!-- ggtitle(paste(strata_y[i]))+ -->
+<!-- guides(color="none")+ -->
+<!-- labs(fill="Arm") -->
+<!-- } -->
+
+<!-- #(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r competing outcome plots comp 8,fig.width=12, fig.height=6, results='hide'} -->
+<!-- plots_comp = list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!--     arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp), -->
+<!--                    tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp)) -->
+<!--     ## set upper limit on upper ci of 1 so it plots properly -->
+
+<!--     arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci)) -->
+<!--     ## Create plots -->
+<!--     plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!--     geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) + -->
+<!--     geom_line()+ -->
+<!--     scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                    labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--     scale_y_continuous ("Cumulative incidence", limits=c(0,1)) + -->
+<!--     theme_bw()+ -->
+<!--     theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!--     ggtitle(paste(strata_y[i]))+ -->
+<!--     guides(color="none")+ -->
+<!--     labs(fill="Arm") -->
+<!-- } -->
+
+<!-- #(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum") -->
+
+<!-- ``` -->
+
+
+<!-- ```{r both outcome plots comp 8,fig.width=12, fig.height=6,  results='hide'} -->
+
+<!-- plot_both= list() -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!-- arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both), -->
+<!--                tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both)) -->
+
+
+<!-- ## set upper limit on upper ci of 1 so it plots properly -->
+
+<!-- arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci)) -->
+<!-- ## Create plots -->
+<!-- plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) + -->
+<!-- geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) + -->
+<!-- geom_line()+ -->
+<!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!-- scale_y_continuous ("Cumulative incidence", limits=c(0,1)) + -->
+<!-- theme_bw()+ -->
+<!-- theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
+<!-- ggtitle(paste(strata_y[i]))+ -->
+<!-- guides(color="none")+ -->
+<!-- labs(fill="Arm") -->
+
+<!-- } -->
+
+<!-- #(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death") -->
+
+<!-- ``` -->
+
+<!-- #### Absolute risk reduction {.tabset} -->
+
+<!-- These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death. -->
+
+<!-- ```{r format ARR comp 8, results='asis'} -->
+<!-- #create dataframes and tables of arr and event rates in each arm, for each stratum -->
+<!-- arr_cis<- list()  -->
+<!-- for(i in 1:length(strata_y)){ -->
+
+<!-- arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times)) -->
+<!-- setDT(arr_cis[[i]]) -->
+<!-- arr_cis[[i]][, time:= all_times] -->
+<!-- arr_cis_select<- arr_cis[[i]][time %in% times_for_tables][,c("time","mean_both", "l_ci_both", "u_ci_both") ] -->
+<!-- arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)] -->
+
+<!-- colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)") -->
+
+<!-- arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both), -->
+<!--                tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both)) -->
+
+<!-- setDT(arms_x3) -->
+<!-- arms3_select <- arms_x3[obs.times %in% times_for_tables] -->
+<!-- abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per") -->
+<!-- abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)] -->
+<!-- colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)") -->
+
+<!-- arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)") -->
+<!-- ft<- flextable(arr_and_individ) -->
+<!-- ft<- width(ft,width=dim_pretty(ft)$widths) -->
+
+<!-- cat(paste0('##### ', strata_y[i], '\n\n')) -->
+
+<!-- flextable_to_rmd(ft) -->
+
+<!-- cat("\n\n") -->
+<!-- } -->
+<!-- ``` -->
+
+<!-- ##### Overall -->
+
+<!-- ```{r arr in one table comp 8, results='asis'} -->
+
+<!-- #calculate ARR for whole cohort -->
+<!-- #matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day. -->
+<!-- arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE])) -->
+
+<!-- arr_flat<-matrix(arr_per_strata, ncol=length(strata_y)) -->
+
+<!-- #matrix of ns in latch, one column per stratum -->
+<!-- strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n)) -->
+<!-- ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times)))) -->
+<!-- #create a vector of totals -->
+<!-- n_tot<- rowSums(ns) -->
+
+<!-- arr_n <- rowSums(arr_flat*ns) -->
+<!-- arr_n_tot <- as.data.frame(arr_n/n_tot) -->
+
+<!-- setDT(arr_n_tot) -->
+<!-- arr_n_tot[, index:=rep(all_times, each=nrep)] -->
+
+<!-- #Group by index then work out quantiles. Use data.table -->
+<!-- arr_n_tot[,mean_both:= (mean(`arr_n/n_tot`,na.rm=T)*100), by=index][,l_ci_both:=(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100),by=index][, u_ci_both:=(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100), by=index] -->
+
+<!-- #select every nrep row -->
+<!-- arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ] -->
+
+<!-- #a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now. -->
+
+<!-- arr_rel_cols<- list() -->
+<!-- for(i in 1: length(strata_y)){ -->
+<!-- setDT(arr_cis[[i]]) -->
+<!-- arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata_y[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both] -->
+<!-- } -->
+
+<!-- arr_all <- do.call(rbind.data.frame, arr_rel_cols) -->
+<!-- #we want to add in rows for the combined weighted total. First harmonise column names -->
+
+<!-- arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"] -->
+<!-- setnames(arr_comb_1, "index", "time") -->
+
+<!-- arr_all_comb<- rbind(arr_all, arr_comb_1) -->
+
+<!-- ### table at various time points -->
+<!-- arr_select <- arr_n_tot_new[index %in% times_for_tables][, `arr_n/n_tot`:=NULL] -->
+<!-- colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)") -->
+
+<!-- ft_comb<- flextable(round(arr_select,1)) -->
+<!-- ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths) -->
+
+<!-- ft_comb -->
+<!-- ``` -->
+
+<!-- #### Plots {.tabset} -->
+
+<!-- ##### Plot of ARR for each strata -->
+
+<!-- Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death. -->
+<!-- ```{r plot sep comp 8, fig.height=4, fig.width=12} -->
+<!-- #strata separately -->
+<!-- ggplot(data=arr_all)+ -->
+<!-- geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+ -->
+<!-- geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+  -->
+<!-- facet_wrap(facets="strata", ncol=4, nrow=2)+ -->
+<!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--              labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!-- scale_y_continuous ("Absolute risk reduction (%)") + -->
+<!-- scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!-- scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!-- theme_bw()+ -->
+<!-- ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+ -->
+<!-- labs(color="Stratum") -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, separate.png") -->
+<!-- ``` -->
+
+<!-- ##### Plot of ARR for each strata -->
+
+<!-- ```{r plot overall comp 8, results='asis', fig.height=4, fig.width=9} -->
+<!-- #all on one plot -->
+<!-- p_8 <- ggplot(data=arr_all)+ -->
+<!--     geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+ -->
+<!--     geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+ -->
+<!--     geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+  -->
+<!--     scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
+<!--                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
+<!--     scale_y_continuous ("Absolute risk reduction (%)") + -->
+<!--     scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+ -->
+<!--     theme_bw()+ -->
+<!--     ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+ -->
+<!--     labs(color="Stratum") -->
+<!-- p_8 -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, combined.png") -->
+<!-- ``` -->
+
+<!-- #### Compare plots with different competing risks -->
+
+<!-- ```{r combine plots with different CR, fig.height=6, fig.width=10} -->
+<!-- p_real+p_1+p_9+p_8+plot_layout(guides="collect", axes="collect")& theme(title=element_text(size=6), axis.title=element_text(size=8)) -->
+<!-- ``` -->
