@@ -118,6 +118,7 @@ strata_comp_n_events_t2 <- c()
 strata_comp_fu_t1<- c()
 strata_comp_fu_t2 <- c()
 
+
 for(i in 1:length(strata)){
   strata_n[i] <-length(strata[[i]]$i_date) 
   strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)

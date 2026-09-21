@@ -164,8 +164,20 @@ latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_s
 # here we also define the survival times for competing risk of death, which we use in the extension below
 #create variable to say if has competing event
 #calculate time to competing event
+#censor: no death, or stroke before death from other cause.
 #provide interim count at t1
-latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ][, time_to_comp_event := fifelse(comp_event_n==1, difftime(date_of_death_trid, i_date, units="days"),difftime("2022-12-31", i_date, units="days"))][, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+
+#censor if had stroke/didn't die
+latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ]
+#time to event is: time to stroke (for people who had stroke); time to death (no stroke and died from other cause);  end of follow up. Coded using fcase.
+latch_for_trident[, time_to_comp_event := fcase(is.na(time_to_all_stroke)==F, time_to_all_stroke, is.na(date_of_death.y)==F& is.na(time_to_all_stroke)==T,difftime(date_of_death_trid, i_date, units="days"),default=difftime("2022-12-31", i_date, units="days"))]
+#provide interim count at t1
+latch_for_trident[, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+  
+  
+
+
+#old version latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ][, time_to_comp_event := fifelse(comp_event_n==1, difftime(date_of_death_trid, i_date, units="days"),difftime("2022-12-31", i_date, units="days"))][, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
 
 strata<- list(
 latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
@@ -1283,7 +1295,6 @@ get_CIs <- function(x, times){
 ```{r loop through strata for arr, results='asis'}
 
 #We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
-
 
 t1_times <- seq(0, 548, 1)
 t2_times <- seq(549, 365.25*6, 1)

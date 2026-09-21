@@ -44,7 +44,7 @@ set_flextable_defaults(
 
 ### Purpose and scope of this document
 
-This report details the analyses for calibration of the TRIDENT trial to a population-based inception cohort.
+This is a brief report of the results of calibration of the TRIDENT trial to a population-based inception cohort.
 
 ### Study overview
 
@@ -94,7 +94,7 @@ In summary, the method is:
 
 #### Trial population
 
-The trial population is the 1670 people included in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days. The primary outcome was time to first recurrent stroke.
+The trial population is the 1670 people in the TRIDENT trial, an international multicentre double-blind placebo-controlled trial. The average time to randomisation after ICH onset was 54 days. The primary outcome was time to first recurrent stroke.
 
 TRIDENT Inclusion Criteria
 
@@ -133,17 +133,15 @@ The LATCH cohort includes 1077 people with ICH of any cause; 917 had ICH presume
 
 ## Analysis
 
-We now perform the analysis.
-
 ### Time period definitions
 
-We will calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
+We calibrate at two time points, 18 months ($t_1$) and end of follow up (approx 6 years, $t_2$). The time period from start of follow-up to $t_1$ is $\tau_1$. The time period from $t_1$ to $t_2$ is $\tau_2$.
 
 ### Data tidying {.tabset}
 
 First we filter LATCH to only those who survived 30 days, format dates correctly, set censoring dates, and split into strata (under 65 and 65 and over, male and female). For this study, we censor LATCH follow up at the maximum TRIDENT follow-up time of six years.
 
-The tables below show the number of events in LATCH for different strata divisions. For the subsequent example, we use four strata.
+The tables below show the number of events in LATCH for different strata divisions. We use four strata.
 
 ```{r read in data, echo=FALSE, message=FALSE}
 latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 30 days.csv")
@@ -345,10 +343,6 @@ cat("\n\n")
 
 ### Parametric survival model for LATCH {.tabset}
 
-We model the event rate (stroke recurrence) in LATCH for each stratum. We use a parametric model. 
-
-First inspect the Kaplan Meier curve. This looks approximately exponential. 
-
 We model the event rate with a parametric survival model to select the most appropriate distribution, using the flexsurv package in R. There are various choices for the model distribution (exponential, gamma, Weibull etc). We compare the hazard and survival plots for each distribution to a non-parametric model (the kernel, in black), and the AIC for each distribution.
 
 The exponential model allows much simpler calculations other models. The AICs are all similar (gamma is the lowest). Although other models have marginally better fits, the exponential model fit is acceptable, and for analytical simplicity, we choose an exponential model.
@@ -494,7 +488,7 @@ As we are assuming an exponential distribution, we can calculate the standard er
 
 $$ ln(SE)= \frac{1}{\sqrt{m_s}}$$.
 
-We can then simulate a normally distributed sample for the event rates.
+We then simulate a normally distributed sample for the event rates.
 
 ```{r simple event rates}
 ## Set number of samples with nrep for use throughout. 
@@ -563,7 +557,7 @@ ggplot(data=log_lambda_u)+
 
 ### Hazard ratios for each stratum {.tabset}
 
-For this mock-up we estimate hazard ratios for each time period (based roughly on published subgroup analysis). For the real analysis, the strata may be different; this is for demonstration only. We assume HR are independent; and make a guess at the HR for young men. We then split into two time periods: up to 18 months, where the HR are approximately 1; and beyond 18 months. We simulate 10,000 samples assuming a log normal distribution, for t1 and t2.
+We have HR for each stratum from the trial data. 
 
 
 ```{r  hazard ratios trident}
@@ -852,7 +846,7 @@ cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", rou
 
 ## Appendix
 
-We can pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
+We pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
 
 ```{r t1 pooled results printout, comment=NA}
 cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence interval ", cis_t1[1], "-", cis_t1[2], ")", sep=""))
@@ -888,7 +882,7 @@ This section is organised as follows.
 
 ### Model selection for competing risk {.tabset}
 
-Ideally we would model the competing risk of death as an exponential, for ease of calculation.  The exponential model appears acceptable, so we choose this for analytic tractability.
+The exponential model appears acceptable, so we choose this for analytic tractability.
 
 #### KM curve
 
@@ -912,7 +906,7 @@ km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25
 
 #### Parametric model
 
-Look to see if the exponential model is acceptable at t2.
+Check if the exponential model is acceptable at t2.
 
 ```{r choose parametric model for competing event rate}
 

@@ -5,12 +5,12 @@ author: "Dr Alice Hosking, Prof Rustam Al-Shahi Salman, Prof William Whiteley, P
 email: "alice.hosking@ed.ac.uk"
 date: "`r Sys.Date()`"
 output:
-  word_document:
-    toc: true
-  # html_document:
+  # word_document:
   #   toc: true
+  html_document:
+    toc: true
     number_sections: true
-    # theme: united
+    theme: united
 bibliography: calibration.bib
 csl: "american-medical-association-10th-edition.csl"
 
@@ -157,6 +157,12 @@ latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&i
 #censor status and survival time at 1.5 years, 4.5 years and all time
 latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
 
+# here we also define the survival times for competing risk of death, which we use in the extension below
+#create variable to say if has competing event
+#calculate time to competing event
+#provide interim count at t1
+latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ][, time_to_comp_event := fifelse(comp_event_n==1, difftime(date_of_death_trid, i_date, units="days"),difftime("2022-12-31", i_date, units="days"))][, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+
 strata<- list(
 latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
 latch_under_65_f<- latch_for_trident[age_index<65&Gender_t=="Female"],
@@ -170,6 +176,10 @@ strata_n_events_t1<- c()
 strata_n_events_t2<- c()
 strata_fu_t1 <- c()
 strata_fu_t2<- c()
+strata_comp_n_events_t1 <- c()
+strata_comp_n_events_t2 <- c()
+strata_comp_fu_t1<- c()
+strata_comp_fu_t2 <- c()
 
 for(i in 1:length(strata)){
   strata_n[i] <-length(strata[[i]]$i_date) 
@@ -177,9 +187,15 @@ for(i in 1:length(strata)){
   strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
   strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
   strata_fu_t2[i]<- sum(strata[[i]]$survival_stroke_t2)
+  
+  strata_comp_n_events_t1[i]<- sum(strata[[i]]$comp_event_n_t1)
+  strata_comp_n_events_t2[i]<- sum(strata[[i]]$comp_event_n_t2)
+  strata_comp_fu_t1[i] <- sum(strata[[i]]$time_to_comp_event_t1)
+  strata_comp_fu_t2[i]<- sum(strata[[i]]$time_to_comp_event_t2)
+  
 
 }
-strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2)
+strata_vars<- list(strata_n=strata_n, strata_n_events_t1=strata_n_events_t1, strata_n_events_t2=strata_n_events_t2, strata_fu_t1=strata_fu_t1, strata_fu_t2=strata_fu_t2, strata_comp_n_events_t1=strata_comp_n_events_t1, strata_comp_n_events_t2=strata_comp_n_events_t2, strata_comp_fu_t1=strata_comp_fu_t1, strata_comp_fu_t2=strata_comp_fu_t2)
 saveRDS(strata_vars, "RDS files/n per strata, 65yrs.rds")
 
 ```
@@ -378,7 +394,6 @@ untreated_rates_round[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci
 #print table of rates
 untreated_rates_round<- as.data.frame(untreated_rates_round)
 rownames(untreated_rates_round)<- strata
-
 
 
 colnames(untreated_rates_round) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
@@ -741,4 +756,387 @@ ggplot(data=as.data.frame(rr_tot_t1))+
 
 
 
+## Extension: absolute risks in the prescence of competing risks.
 
+To properly calculate absolute risk of recurrent stroke, we need to take into account competing risk of death. We earlier defined variables to allow us to calculate the rate of competing events.
+
+### Model selection {.tabset}
+
+#### KM curve
+
+First, look at the Kaplan-Meier curve.
+
+```{r KM death rates LATCH}
+s1<- survfit(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident)
+km_plot<- survminer::ggsurvplot(s1, ylim=c(0, 1), xlim=c(0, 6*365.25), break.x.by = 365.25, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot$plot+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+
+### to t1 only 
+s1_t1<- survfit(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident)
+km_plot_t1<- survminer::ggsurvplot(s1_t1, ylim=c(0, 1), xlim=c(0, 1.5*365.25), break.x.by = 365.25/2, xlab = "Year", risk.table =FALSE,surv.plot.height = 2,
+           ggtheme = theme(aspect.ratio = 1),legend="none", ylab="Survival free of recurrent stroke") 
+km_plot_t1$plot+  scale_x_continuous(breaks = c(0,365.25),
+                                     labels = c(0,1))
+
+```
+
+#### Parametric model
+
+Look to see if the exponential model is acceptable at t2. There appears to be a high early death rate until T1, which might be better fit by alternative model. To be discussed with David.
+
+```{r choose parametric model for competing event rate}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(as.difftime(latch_for_trident$time_to_comp_event, units="days"), latch_for_trident$comp_event_n)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(time_to_comp_event_t2, comp_event_n_t2) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$comp_event_n_t1)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+
+
+```{r comp event plots,fig.width=8,fig.height=4}
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot$data.survplot)+
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                                     labels = c(0,1,2,3,4,5,6))
+```
+
+#### Model selction at t1
+
+What does it look like at t1?
+
+```{r choose parametric model for competing event rate at t1}
+
+# help here: https://www.r-bloggers.com/2019/06/parametric-survival-modeling/
+#from help page - choosing best model based on shape of distribution
+
+# cran vignette from flexsurv package also useful
+# https://cran.r-project.org/web/packages/flexsurv/vignettes/standsurv.html
+
+#non-parametric model for comparison
+kernel_haz_est <- muhaz(latch_for_trident$time_to_comp_event_t1, latch_for_trident$comp_event_n_t1, max.time=548)
+kernel_haz <- data.table(time = kernel_haz_est$est.grid, est = kernel_haz_est$haz.est,method = "Kernel density")
+
+#vectors of all the options
+dists <- c("exp", "weibull",  "gamma", "lognormal", "llogis", "gengamma","gompertz")
+dists_long <- c("Exponential", "Weibull (AFT)", "Gamma", "Lognormal", "Log-logistic", "Generalized gamma","Gompertz")
+
+#parametric model - generate hazards and survival for different distributions, for whole dataset
+#initialise variables
+parametric_haz <- vector(mode = "list", length = length(dists))
+parametric_preds <- vector(mode = "list", length = length(dists))
+fit_test<- list()
+
+#loop through each distribution
+for (i in 1:(length(dists)-1)){
+  fit <- flexsurvreg(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident, dist = dists[i]) 
+  fit_test[[i]]<- fit
+  #hazards for plot 1
+  parametric_haz[[i]] <- summary(fit, type = "hazard", ci = FALSE, tidy = TRUE)
+  parametric_haz[[i]]$method <- dists_long[i]
+  #survival for plot 2
+  parametric_preds[[i]] <- summary(fit, type = "survival", tidy=T)
+  parametric_preds[[i]]$method <- dists_long[i]
+  
+  }
+
+#add in gompertz separately as failed to initialize
+fit_gompertz <- flexsurvreg(Surv(time_to_comp_event_t1, comp_event_n_t1) ~ 1, data = latch_for_trident, dist = dists[7], inits=c(-1, 1/mean(as.numeric(latch_for_trident$comp_event_n_t1)))) 
+parametric_haz[[length(dists)]] <- summary(fit_gompertz, type = "hazard", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_haz[[length(dists)]]$method<- dists_long[length(dists)]
+parametric_preds[[length(dists)]] <- summary(fit_gompertz, type = "survival", 
+                                     ci = FALSE, tidy = TRUE)
+parametric_preds[[length(dists)]]$method<- dists_long[length(dists)]
+
+#join all together
+parametric_haz <- rbindlist(parametric_haz)
+haz <- rbind(kernel_haz, parametric_haz)
+haz[, method := factor(method,
+                       levels = c("Kernel density",
+                                  dists_long))]
+n_dists <- length(dists) 
+```
+
+
+```{r comp event plots at t1,fig.width=8,fig.height=4}
+
+parametric_preds_df<- rbindlist(parametric_preds, fill=TRUE)
+ggplot() + 
+  geom_line(aes(x=time, y=est, col = method, linetype = method ), data=parametric_preds_df) + 
+  geom_step(aes(x=time, y=surv), data=km_plot_t1$data.survplot)+
+  xlab("Years") +ylab("Survival free of recurrent stroke") +
+  scale_x_continuous(breaks = c(0,365.25,365.25*2),
+                                     labels = c(0,1,2))
+```
+
+
+### Rates of competing event (assume same for treated and untreated)
+
+Assuming exponential event rate across $\tau_1$ and $\tau_2$, we can calculate the event rate, the standard error, and simulate a normally distributed sample. The tables shows the event rates for each stratum.
+
+```{r simple event rates comp}
+## Set number of samples with nrep for use throughout.
+nrep<-10000
+
+#event rate at t2
+rate_comp_est <- strata_vars$strata_comp_n_events_t2/ strata_vars$strata_comp_fu_t2*365.35*100
+log_rate_comp_est <- log(strata_vars$strata_comp_n_events_t2/ strata_vars$strata_comp_fu_t2)
+
+# Calculate SE of the log-rate for untreated
+log_rate_comp_se <- 1 / sqrt(strata_vars$strata_comp_n_events_t2)
+saveRDS(rate_comp_est, "RDS files/LATCH comp rates, strata above and below 65 years.rds")
+saveRDS(log_rate_comp_est, "RDS files/LATCH log comp rates, strata above and below 65 years.rds")
+saveRDS(log_rate_comp_se, "RDS files/LATCH se log comp rates, strata above and below 65 years.rds")
+
+
+## obtain and plot samples from rate in untreated
+untreated_rates_comp<- as.data.frame(cbind(strata_vars$strata_n, rate_comp_est,log_rate_comp_est, log_rate_comp_se))
+setDT(untreated_rates_comp)
+log_lambda_u_comp<- untreated_rates_comp[,rnorm(nrep, mean=log_rate_comp_est, sd=log_rate_comp_se), by=.I]
+
+#rename I column to the strata names
+strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Female 65 years and over")
+log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=c(1,2,3,4), labels=strata)
+
+#calculate confidence intervals for visualisation
+untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
+saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata above and below 65 years.rds")
+
+#round all the numbers
+untreated_rates_comp_round<- round(untreated_rates_comp,2)
+#make the rate and confidence intervals look nice in one column
+untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][,rate_comp_est:=NULL][, lower_ci:=NULL][, upper_ci:=NULL]
+
+```
+
+```{r table of rates comp}
+#print table of rates
+untreated_rates_comp_round<- as.data.frame(untreated_rates_comp_round)
+rownames(untreated_rates_comp_round)<- strata
+
+
+colnames(untreated_rates_comp_round) <- c( "N in stratum",  "log(rate/day)", "log(standard error)","Events per 100 person years (95% CI)")
+
+
+ft_rates_comp<- flextable(untreated_rates_comp_round)
+
+ft_rates_comp2 <- width(ft_rates_comp,width=dim_pretty(ft_rates_comp)$widths)
+ft_rates_comp2
+```
+### Calculate event rates accounting for competing risk
+
+At this stage I haven't simulated confidence intervals.
+The cumulative survival at each time point, taking into account competing risk of death, is 
+
+$$\text{cumulative survival} = 1 - exp{(-\lambda_i t})-exp{(-\lambda_j  t}) $$.
+
+The cumulative incidence is then:
+
+$$ \text{cumulative incidence} = \text{cumulative survival} \times \lambda_i / (\lambda_i + \lambda_j)$$
+At t1, this is as follows.
+
+```{r calculate competing risk from DM code}
+# This is adapted from David McAllister's code. He defines rate in each arm, and the competing risk rate.
+# rate.main - lambda_t1_sim and lambda_t2_sim for treated; lambda_u_sim for untreated
+# rate.compete = exp(log_lambda_u_comp_sim)
+# Function to create dataframe with samples for arm, Welton version
+
+MakeCumulative <- function (arm, rate.main, rate.compete, times){
+  lamda_new <- matrix(NA, ncol = 2, nrow = length(times))
+  p_new <- matrix(NA, ncol = 3, nrow = length(times))
+  cumslam_new <- NA
+  
+  lamda_new [,1] <- rate.main 
+  lamda_new [,2] <- rate.compete
+  
+  slam_new <- rowSums(lamda_new[,1:2]) 
+  cumslam_new <- 1 - exp(-slam_new*times)
+  
+  # Calculate cumulative incidence for each outcome
+  for (j in 1:2){
+    p_new[,j] <- lamda_new[,j] * cumslam_new /slam_new 
+  }# end of loop through outcomes
+  p_new[,3] <- 1 - rowSums(p_new[,1:2])
+  p_new
+}
+
+t1_times <- seq(0, 548, 1)
+
+#lambda for each stratum is in a vector nrep *length(strata) long.
+#do overall, then loop through for each stratum
+
+# Placebo arm
+pl <- MakeCumulative("u",
+                     rate.main=(mean(lambda_u_sim[1:length(strata) * nrep])),
+                     rate.compete= sum(exp(log_lambda_u_comp[1:length(strata)*nrep,2]))/(length(strata)*nrep), 
+                     times=t1_times)
+# Treatment arm
+tx <- MakeCumulative (arm = "rx",
+                      rate.main = mean(lambda_t1_sim[1:length(strata) * nrep]),
+                      rate.compete = sum(exp(log_lambda_u_comp[1:length(strata) * nrep,2]))/(length(strata) * nrep), t1_times)
+
+## Calculate comparisons
+arr = pl - tx
+rr = tx/pl
+or = (tx/(1-tx)) / (pl/(1-pl))
+
+## Arrange data for plots
+arms <- bind_rows(tibble(obs.times = t1_times, arm = "pl", n1_cum_per = pl[,1]),
+                  tibble(obs.times = t1_times, arm = "tx", n1_cum_per = tx[,1]))
+
+effects <- tibble(obs.times = t1_times,
+                  arr = arr[,1], rr = rr[,1], or = or[,1]) %>%
+  filter(obs.times !=0)
+list(arms = arms, effects = effects)
+
+## Create plots
+plot1 <- ggplot (arms , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") 
+plot1
+
+
+
+```
+```{r calculate competing risk at T2 from DM code}
+#we amend the above code to account for two periods with different hazard ratios.
+
+
+MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete, t1_times, t2_times){
+  all_times <- c(t1_times, t2_times)
+  lambda_new <- matrix(NA, ncol = 2, nrow = length(all_times))
+  p_new <- matrix(NA, ncol = 3, nrow = length(all_times))
+  cumslam_new <- NA
+  
+  
+  lambda_new [1:length(t1_times),1] <- rate.main.t1
+  lambda_new[(length(t1_times)+1):max(t2_times),1 ]<- rate.main.t2
+  lambda_new [,2] <- rate.compete
+  
+  slam_new_1 <- rowSums(lambda_new[1:length(t1_times),1:2]) 
+  slam_new_2 <- rowSums(lambda_new[(length(t1_times)+1):max(t2_times),1:2]) 
+  slam_new <- c(slam_new_1, slam_new_2)
+  cumslam_new <- 1 - exp(-(slam_new*all_times))
+  
+  # Calculate cumulative incidence for each outcome
+  for (j in 1:2){
+    p_new[,j] <- lambda_new[,j] * cumslam_new /(slam_new) 
+  }# end of loop through outcomes
+  
+  p_new[,3] <- 1 - rowSums(p_new[,1:2])
+  p_new
+}
+
+
+
+
+
+t2_times <- seq(549, 365.25*6, 1)
+
+#lambda for each stratum is in a vector nrep *length(strata) long.
+#do overall, then loop through for each stratum
+
+# Placebo arm
+pl_2 <- MakeCumulative2("u",
+                     rate.main.t1 = mean(lambda_u_sim[1:length(strata) * nrep]),
+                     rate.main.t2 = mean(lambda_u_sim[1:length(strata) * nrep]),
+                     rate.compete= sum(exp(log_lambda_u_comp[1:length(strata)*nrep,2]))/(length(strata)*nrep), 
+                     t1_times,
+                     t2_times)
+# Treatment arm
+tx_2 <- MakeCumulative2 (arm = "rx",
+                      rate.main.t1 = mean(lambda_t1_sim[1:length(strata) * nrep]),
+                     rate.main.t2 = mean(lambda_t2_sim[1:length(strata) * nrep]),
+                     rate.compete= sum(exp(log_lambda_u_comp[1:length(strata)*nrep,2]))/(length(strata)*nrep), 
+                     t1_times,
+                     t2_times)
+
+## Calculate comparisons
+arr_2 = pl_2 - tx_2
+rr_2 = tx/pl
+or_2 = (tx/(1-tx)) / (pl/(1-pl))
+
+## Arrange data for plots
+arms_2 <- bind_rows(tibble(obs.times = c(t1_times,t2_times), arm = "pl", n1_cum_per = pl_2[,1]),
+                  tibble(obs.times = c(t1_times,t2_times), arm = "tx", n1_cum_per = tx_2[,1]))
+
+effects <- tibble(obs.times = t1_times,
+                  arr = arr[,1], rr = rr[,1], or = or[,1]) %>%
+  filter(obs.times !=0)
+list(arms = arms_2, effects = effects)
+
+## Create plots
+plot1 <- ggplot (arms_2 , aes(x = obs.times, y = n1_cum_per, colour = arm)) + 
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Cumulative incidence") 
+plot1
+
+arms$n1_cum_per[which(arms$obs.times==548)]
+arms_2$n1_cum_per[which(arms_2$obs.times==548)]
+
+plot2 <- ggplot (effects, aes(x = obs.times, y = rr)) +
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Relative risk for events to time (t)")
+plot2
+
+plot3 <- ggplot (effects , aes(x = obs.times, y = or)) +
+  geom_smooth(se = FALSE) +
+  scale_x_continuous("Time (days)") +
+  scale_y_continuous ("Odds ratio for events to time (t)")
+plot3
+
+```
