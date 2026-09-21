@@ -9,6 +9,9 @@ output:
    toc: true
    number_sections: true
    theme: united
+   
+  # word_document:
+  #  toc: true
 bibliography: calibration.bib
 csl: "american-medical-association-10th-edition.csl"
 
@@ -140,8 +143,7 @@ df_new
 }
 
 
-  # <!-- word_document: -->
-  # <!-- toc: true -->
+
 ```
 
 ## Introduction
@@ -479,12 +481,12 @@ ft_rates2
 <!--   geom_histogram(aes(x=V1), fill="#FCCDE5")+ -->
 <!--   theme_bw()+ -->
 <!--   facet_wrap(vars(I), nrow=2, ncol=4)+ -->
-<!--   labs(title="Simulated log rates for strata 1-4")+  -->
+<!--   labs(title="Simulated log rates for strata 1-8")+  -->
 <!--   xlab("") -->
 <!-- ``` -->
 
 
-### Hazard ratios for each stratum {.tabset}
+### Hazard ratios for each stratum
 
 These hazard ratios are extracted from TRIDENT.
 
@@ -507,7 +509,7 @@ setDT(hrs_t2)
 
 ```
 
-#### Hazard ratio for period $\tau_1$
+
 ```{r hr for t1}
 hrs_t1_for_tab <-round(hrs_t1,2)
 
@@ -526,7 +528,7 @@ ft_hr_t1_a
 
 ```
 
-<!-- #### Histogram of log hazard ratios for strata 1-4, $\tau_1$ -->
+<!-- #### Histogram of log hazard ratios for strata 1-8, $\tau_1$ -->
 
 ```{r 1000 hrs, warnings=F,fig.width=8,fig.height=4}
 #obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
@@ -551,7 +553,7 @@ log_hrs_t1_per_strata$I <- factor(log_hrs_t1_per_strata$I, levels=seq(1, length(
 #   xlab("Log of hazard ratio")
 ```
 
-<!-- #### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ -->
+<!-- #### Histogram of simulated hazard ratios for strata 1-8, $\tau_2$ -->
 
 ```{r hist hr t1 exponentiated,fig.width=8,fig.height=4}
 # ggplot(data=log_hrs_t1_per_strata)+
@@ -581,7 +583,7 @@ log_hrs_t2_per_strata$I <- factor(log_hrs_t2_per_strata$I, levels=seq(1, length(
 #   xlab("Log of hazard ratio")
 ```
 
-<!-- #### Histogram of simulated hazard ratios for strata 1-4, $\tau_2$ -->
+<!-- #### Histogram of simulated hazard ratios for strata 1-8, $\tau_2$ -->
 
 ```{r t2 hr exponentiated,fig.width=8,fig.height=4}
 # ggplot(data=log_hrs_t2_per_strata)+
@@ -653,7 +655,7 @@ ggplot(data=risk_ratio_for_plot_t1)+
 ```
 
 
-#### Risk ratios for strata 1-4, $t_2$
+#### Risk ratios for strata 1-8, $t_2$
 
 ```{r risk plot t2,fig.width=8,fig.height=4}
 ggplot(data=risk_ratio_for_plot_t2)+
@@ -662,7 +664,7 @@ ggplot(data=risk_ratio_for_plot_t2)+
   theme_bw()+
   geom_vline(aes(xintercept = means_t2, colour=V1), linewidth=0.5, linetype="dashed", data=rr_means_t2)+
   facet_wrap(vars(V1), nrow=2, ncol=4)+
-  labs(title= quote("Simulated risk ratios for strata 1-4, "* t[2]* "."))+
+  labs(title= quote("Simulated risk ratios for strata 1-8, "* t[2]* "."))+
   xlab("Risk ratio")
 
 ```
@@ -1412,9 +1414,7 @@ ggplot(data=arr_all)+
 ggsave("ARR plots with varying competing risks/Real competing risk ratios, separate.png")
 ```
 
-## References
-<div id="refs"></div>
-  
+
 ## Appendix
   
   We pool the risk ratio at $t_1$, to find the calibrated relative risk after 18 months.
