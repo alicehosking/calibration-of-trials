@@ -33,6 +33,7 @@ library(patchwork)
 library(readxl)
 library(RColorBrewer)
 
+
 set.seed(42)
 
 knitr::opts_chunk$set(message = F, warning=F, echo=F)
@@ -44,6 +45,12 @@ set_flextable_defaults(
 
 
 #This function calculates the cumulative incidence accounting for competing risks.
+
+
+
+
+
+
 
 MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete.t1, rate.compete.t2, t1_times, t2_times){
 
@@ -84,7 +91,7 @@ slam_new_2 <- rowSums(lambda_new[((length(t1_times)*nrep)+1):(length(all_times)*
 slam_new <- c(slam_new_1, slam_new_2)
 
 #cumulative rates. First, for both outcomes
-cumslam_new_1 <- 1 - exp(-(slam_new_1*rep(t1_times, each=nrep)))
+cumslam_new_1 <- 1 - exp(-slam_new_1*rep(t1_times, each=nrep))
 # need to adjust start point at end of t1: first day of t2 - last day of t1. 
 adj_cum_x <- exp(-slam_new_2[1:nrep]*(rep(t2_times[1],nrep))) - exp(-slam_new_1[((length(t1_times)-1)*nrep+1):(length(t1_times)*nrep)]* rep(max(t1_times), nrep))
 
@@ -141,7 +148,6 @@ df[,mean_both:= mean(V3,na.rm=T), by=index][,l_ci_both:=quantile(V3, probs=0.025
 df_new <- df[seq(1, nrow(df),nrep), ]
 df_new
 }
-
 
 
 ```
@@ -277,7 +283,7 @@ The table shows the number of recurrent stroke events and non-stroke death event
 ```{r read in data, echo=FALSE, message=FALSE}
 latch_for_tridentx<- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Treatment effect in trials/LATCH cohort survived 30 days.csv")
 setDT(latch_for_tridentx)
-latch_for_trident<- latch_for_tridentx[,c("survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
+latch_for_trident<- latch_for_tridentx[,c("LatchID", "survival_time","censor_status_death","i_date","Gender_t", "date_of_death.y","cause_of_death","first_mi","first_tia","first_stroke","first_dvt","first_pe", "first_rec_ich","pre_rankin", "age_index")] 
 #some dates are stored as excel formatted dates. 
 #for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
 latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
@@ -395,6 +401,7 @@ flextable_to_rmd(ft)
 
 cat("\n\n")
 
+
 ```
 
 #### Event rates in LATCH over whole study time
@@ -427,7 +434,7 @@ saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and belo
 untreated_rates_round<- round(untreated_rates,2)
 #make the rate and confidence intervals look nice in one column
 untreated_rates_round[, rate_cis:= paste(rate_est, " (", lower_ci, "-", upper_ci, ")", sep="")][, c("log_rate_est","rate_est","lower_ci","upper_ci","log_est","log_rate_se" ):= NULL][,Stratum:= strata_y ]
-setnames(untreated_rates_round, c("V1", "rate_cis"), c("Recurrent stroke (n)","Rate of recurrent stroke per 100py (95%CI)"))
+setnames(untreated_rates_round, c("V1", "rate_cis"), c("N in strata","Rate of recurrent stroke per 100py (95%CI)"))
 
 ## competing risk rates
 #event rate at t2 for each stratum, single value
@@ -453,8 +460,9 @@ saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata abov
 #round all the numbers
 untreated_rates_comp_round<- round(untreated_rates_comp,2)
 #make the rate and confidence intervals look nice in one column
-untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][, c("rate_comp_est","lower_ci","upper_ci","log_rate_comp_est","log_rate_comp_se" ):= NULL][,Stratum:= strata_y ]
-setnames(untreated_rates_comp_round, c("V1", "rate_cis"), c("Non-stroke death (n)", "Rate of non-stroke death per 100py (95%CI)"))
+untreated_rates_comp_round[, rate_cis:= paste(rate_comp_est, " (", lower_ci, "-", upper_ci, ")", sep="")][, c("rate_comp_est","lower_ci","upper_ci","log_rate_comp_est","log_rate_comp_se" , "V1"):= NULL][,Stratum:= strata_y ]
+setnames(untreated_rates_comp_round, c( "rate_cis"), c("Rate of non-stroke death per 100py (95%CI)"))
+
 
 ```
 
@@ -464,9 +472,12 @@ setnames(untreated_rates_comp_round, c("V1", "rate_cis"), c("Non-stroke death (n
 
 untreated_rates_all<- merge(untreated_rates_round, untreated_rates_comp_round, by="Stratum")
 untreated_rates_all<- as.data.frame(untreated_rates_all)
+untreated_rates_all$Stratum<- factor(untreated_rates_all$Stratum, levels=strata_y, ordered=T)
+strata_events_min <- strata_events[, c("Stratum", "N in strata","Recurrent stroke by t2","Competing events by t2" )]
+full_tab <- merge(untreated_rates_all, strata_events_min)
 
-
-ft_rates<- flextable(untreated_rates_all)
+full_tab<- full_tab %>% arrange(Stratum)
+ft_rates<- flextable(full_tab)
 
 ft_rates2 <- width(ft_rates,width=dim_pretty(ft_rates)$widths)
 ft_rates2
@@ -519,6 +530,8 @@ hrs_t2_for_tab <-round(hrs_t2,2)
 hrs_t2_for_tab[, Stratum:= strata_y][, "HR (95%CI) T2":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci"):=NULL ]
 
 hrs_both_times_tab<- merge(hrs_t1_for_tab, hrs_t2_for_tab, by="Stratum")
+
+hrs_both_times_tab<- hrs_both_times_tab %>% mutate(Stratum = factor(Stratum, levels=strata_y, ordered=T) )%>%arrange(Stratum)
 ft_hr_t1<- flextable(hrs_both_times_tab)
 ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
 ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
@@ -624,33 +637,46 @@ risk_t2 <- 1-exp(-(lambda_t1_sim*t1+lambda_t2_sim*t2))
 risk_ratio_t1 <- risk_t1/risk_u1
 risk_ratio_t2 <- risk_t2/risk_u2
 
-risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t1))
-risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(seq(1, length(strata_y)), each=nrep), risk_ratio_t2))
+risk_ratio_for_plot_t1 <- as.data.frame(cbind(rep(strata_y, each=nrep), as.numeric(risk_ratio_t1)))
+risk_ratio_for_plot_t2 <- as.data.frame(cbind(rep(strata_y, each=nrep), as.numeric(risk_ratio_t2)))
+risk_ratio_for_plot_t1<- risk_ratio_for_plot_t1%>% mutate(V1= factor(V1, levels=strata_y, ordered=T))%>% arrange(V1)
+risk_ratio_for_plot_t2<- risk_ratio_for_plot_t2%>% mutate(V1= factor(V1, levels=strata_y, ordered=T))%>% arrange(V1)
 
 rr_means_t1<- risk_ratio_for_plot_t1%>%
   group_by(V1)%>%
-  summarize(means_t1=round(mean(risk_ratio_t1),3))
+  summarize(means_t1=round(mean(as.numeric(V2)),3))
   
 rr_means_t2<- risk_ratio_for_plot_t2%>%
   group_by(V1)%>%
-  summarize(means_t2=round(mean(risk_ratio_t2),3))
+  summarize(means_t2=round(mean(as.numeric(V2)),3))
+
 
 ```
 
 #### Risk ratios for strata, $t_1$
 
 ```{r risk plot t1,fig.width=8,fig.height=4}
+
+
 ggplot(data=risk_ratio_for_plot_t1)+
   geom_histogram(aes(x=risk_ratio_t1),breaks = seq(0, 4, by = 0.1), fill="#FCCDE5")+
   geom_text(data=rr_means_t1, aes(x=means_t1+1, y=100, label= paste("Mean=",means_t1)), size=3)+
   theme_bw()+
-  geom_vline(aes(xintercept = means_t1, colour=V1), linewidth=0.5, linetype="dashed", data=rr_means_t1)+
-  facet_wrap(vars(V1), nrow=2, ncol=4)+
+  theme(
+      panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white")
+    )+
+  geom_vline(aes(xintercept = means_t1, colour=V1), linewidth=0.5, linetype="dashed", colour= "#377EB8",data=rr_means_t1)+
+  facet_wrap(vars(V1), nrow=2, ncol=4, labeller=labeller(V1=strata_y))+
   labs(title=quote("Simulated risk ratios for strata, "* t[1]* "."))+
   xlab("Risk ratio")+
   ylab("Number of samples")+
   xlim(c(0,4))+
   ylim(c(0,150))
+
+ggsave("Plots/Simulated risk ratios, t1.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=8)
+
+
 
 ```
 
@@ -662,10 +688,17 @@ ggplot(data=risk_ratio_for_plot_t2)+
   geom_histogram(aes(x=risk_ratio_t2), fill="#80B1D3")+
   geom_text(data=rr_means_t2, aes(x=means_t2+1, y=100, label= paste("Mean=",means_t2)), size=3)+
   theme_bw()+
-  geom_vline(aes(xintercept = means_t2, colour=V1), linewidth=0.5, linetype="dashed", data=rr_means_t2)+
+  theme(panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+  geom_vline(aes(xintercept = means_t2, colour=V1), linewidth=0.5, linetype="dashed", colour= "#377EB8", data=rr_means_t2)+
   facet_wrap(vars(V1), nrow=2, ncol=4)+
   labs(title= quote("Simulated risk ratios for strata 1-8, "* t[2]* "."))+
-  xlab("Risk ratio")
+  xlab("Risk ratio")+
+  ylab("Number of samples")+
+  xlim(c(0,4))+
+  ylim(c(0,300))
+
+ggsave("Plots/Simulated risk ratios, t2.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=8)
 
 ```
 
@@ -687,14 +720,14 @@ n_tot<- rowSums(ns)
 #t1
 rn_t1 <- rowSums(rr_t1*ns)
 rr_tot_t1 <- rn_t1/n_tot
-cis_t1<- round(quantile(rr_tot_t1, probs = c(0.025, 0.975)),3)
-est_t1<- round(mean(rr_tot_t1),3)
+cis_t1<- round(quantile(rr_tot_t1, probs = c(0.025, 0.975)),2)
+est_t1<- round(mean(rr_tot_t1),2)
 
 #t2
 rn_t2 <- rowSums(rr_t2*ns)
 rr_tot_t2 <- rn_t2/n_tot
-cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),3)
-est_t2<- round(mean(rr_tot_t2),3)
+cis_t2<- round(quantile(rr_tot_t2, probs = c(0.025, 0.975)),2)
+est_t2<- round(mean(rr_tot_t2),2)
 ```
 
 #### Calibrated risk ratio at the end of the trial, for the whole trial
@@ -706,18 +739,20 @@ cat(paste("  The estimated calibrated risk ratio is ", est_t2, " (95% confidence
 ```
 \n
 \n
-```{r t2 pooled results,results="asis",fig.width=4,fig.height=3}
+```{r t2 pooled results,results="asis",fig.width=4.5,fig.height=3.5}
 
 ggplot(data=as.data.frame(rr_tot_t2))+
   geom_histogram(aes(x=rr_tot_t2), fill="#80B1D3")+
   theme_bw()+
+  theme(panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
   labs(title=quote("Simulated risk ratio for the whole trial at "* t[2]* ". "))+ 
   geom_vline(aes(xintercept = est_t2), linewidth=0.5, linetype="dashed")+
   xlab("Risk ratio")+  
   ylab("n samples")+
-  geom_text(data=rr_means_t1, aes(x=est_t2+0.16, y=75, label= paste("RR=",est_t1," (95%CI ", cis_t2[1], "-", cis_t2[2], ")", sep="")), size=3)
+  geom_text(data=rr_means_t1, aes(x=est_t2+0.2, y=75, label= paste("RR=",est_t2," (95%CI ", cis_t2[1], "-", cis_t2[2], ")", sep="")), size=3.5)
 
-
+ggsave("Plots/whole trial risk ratio t2.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=8)
 
 ```
 
@@ -812,9 +847,11 @@ for(i in 1:length(strata_y)){
       #geom_point()+
       scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
                      labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-      scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
+      scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
       theme_bw()+
-      theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  
+      theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8), panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
       ggtitle(paste(strata_y[i]))+
       guides(color="none")+
       labs(fill="Arm")
@@ -843,13 +880,14 @@ plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = a
                    labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
     scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
     theme_bw()+
-    theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+    theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
     ggtitle(paste(strata_y[i]))+
     guides(color="none")+
     labs(fill="Arm")
 }
 
-#(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
+(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
 
 ```
 
@@ -875,7 +913,8 @@ for(i in 1:length(strata_y)){
                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
   scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
   theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
   ggtitle(paste(strata_y[i]))+
   guides(color="none")+
   labs(fill="Arm")
@@ -961,6 +1000,11 @@ arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_bot
 }
 
 arr_all <- do.call(rbind.data.frame, arr_rel_cols)
+#orderarr_all. by stratum
+
+arr_all<- arr_all[,strata:= factor(strata, levels=strata_y, ordered=T) ]
+
+
 #we want to add in rows for the combined weighted total. First harmonise column names
 
 arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
@@ -987,19 +1031,31 @@ ft_comb
 ```{r plot overall comp 1, results='asis', fig.height=4, fig.width=9}
 
 #all on one plot
-p_1 <- ggplot(data=arr_all)+
-geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
-geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
-geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-             labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Absolute risk reduction (%)") +
-scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-theme_bw()+
-ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 1"))+
-labs(color="Stratum")
+
+plot_arr_one <- function (z){
+
+    p_1 <- ggplot(data=z)+
+    geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
+    geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
+    geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
+    scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+    scale_y_continuous ("Absolute risk reduction (%)", limits = c(-10,20)) +
+    scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999","#377EB8"))+
+    theme_bw()+
+      theme(panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+    ggtitle(paste("Absolute risk reduction of recurrent stroke"))+
+    labs(color="Stratum")
+    
+    return(p_1)
+    
+}
+
+p_1<-plot_arr_one(arr_all)
+
 p_1
-ggsave("ARR plots with varying competing risks/Competing risk ratio 1, combined.png")
+ggsave("ARR plots with varying competing risks/Competing risk ratio 1, combined.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=9)
 
 ```
 
@@ -1008,23 +1064,35 @@ ggsave("ARR plots with varying competing risks/Competing risk ratio 1, combined.
 Absolute risk reduction for the whole LATCH population and each age/sex stratum, taking into account competing risk of death.
 ```{r plot sep comp 1, fig.height=4, fig.width=12}
 #strata separately
-ggplot(data=arr_all)+
-geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-facet_wrap(facets="strata", ncol=4, nrow=2)+
-scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-             labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-scale_y_continuous ("Absolute risk reduction (%)") +
-scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-theme_bw()+
-ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 1"))+
-labs(color="Stratum")
 
+plot_strata<- function(z){
+  
+  
+  plot_str<- ggplot(data=z)+
+  geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
+  geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
+  facet_wrap(facets="strata", ncol=4, nrow=2)+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Absolute risk reduction (%)", limits=c(-60,60)) +
+  scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+  scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
+  theme_bw()+
+    theme(panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+  ggtitle(paste("Absolute risk reduction of recurrent stroke"))+
+  labs(color="Stratum")
+return(plot_str)  
+}
 
-ggsave("ARR plots with varying competing risks/Competing risk ratio 1, separate.png")
+plot_rr1<- plot_strata(arr_all)
+plot_rr1
+
+ggsave("ARR plots with varying competing risks/Competing risk ratio 1, separate.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=12)
 
 ```
+
+
 
 ### Competing event analysis: assuming difference in non-stroke death between treatment and placebo arm using hazard ratios from TRIDENT data.
 
@@ -1047,11 +1115,11 @@ HR_comp_t2<- rbind(HR_comp_t2,HR_comp_t2_over65 ,HR_comp_t2_over65)
 setDT(HR_comp_t2)
 
 ### make version to print
-hrs_comp_t1_for_tab <-round(hrs_t1,2)
+hrs_comp_t1_for_tab <-round(HR_comp_t1,2)
 
 hrs_comp_t1_for_tab<-hrs_comp_t1_for_tab[, Stratum:= strata_y][, "HR (95%CI) T1":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci", "log_se", "log_hr", "se"):=NULL ]
 
-hrs_comp_t2_for_tab <-round(hrs_t2,2)
+hrs_comp_t2_for_tab <-round(HR_comp_t2,2)
 hrs_comp_t2_for_tab <- hrs_comp_t2_for_tab[, Stratum:= strata_y][, "HR (95%CI) T2":= paste(HR, " (", l_ci, "-", u_ci, ")", sep="")][,c("HR","l_ci","u_ci", "log_se", "log_hr", "se"):=NULL ]
 
 hrs_comp_both_times_tab<- merge(hrs_comp_t1_for_tab, hrs_comp_t2_for_tab, by="Stratum")
@@ -1063,7 +1131,6 @@ ft_hr_t1<- flextable(hrs_comp_both_times_tab)
 #ft_hr_t1<- set_header_labels(ft_hr_t1, HR="Hazard ratio", l_ci="Lower CI", u_ci="Upper CI")
 ft_hr_t1_a <- width(ft_hr_t1,width=dim_pretty(ft_hr_t1)$widths)
 ft_hr_t1_a
-
 
 ```
 
@@ -1201,9 +1268,10 @@ for(i in 1:length(strata_y)){
   #geom_point()+
   scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
   theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
   ggtitle(paste(strata_y[i]))+
   guides(color="none")+
   labs(fill="Arm")
@@ -1232,7 +1300,8 @@ for(i in 1:length(strata_y)){
                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
   scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
   theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
   ggtitle(paste(strata_y[i]))+
   guides(color="none")+
   labs(fill="Arm")
@@ -1266,7 +1335,8 @@ for(i in 1:length(strata_y)){
                  labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
   scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
   theme_bw()+
-  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
   ggtitle(paste(strata_y[i]))+
   guides(color="none")+
   labs(fill="Arm")
@@ -1316,6 +1386,7 @@ for(i in 1:length(strata_y)){
   cat("\n\n")
 }
 ```
+
 ##### Overall
 
 ```{r arr in one table, results='asis'}
@@ -1353,6 +1424,8 @@ arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_bot
 }
 
 arr_all <- do.call(rbind.data.frame, arr_rel_cols)
+
+arr_all<- arr_all[, strata:= factor(strata, labels=strata_y, ordered=T)]
 #we want to add in rows for the combined weighted total. First harmonise column names
 
 arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
@@ -1378,19 +1451,12 @@ ft_comb
 ```{r plot overall, results='asis', fig.height=4, fig.width=9}
 
 #all on one plot
-p_real <- ggplot(data=arr_all)+
-  geom_smooth( aes(x =time, y = mean_both, colour=strata), linewidth=0.5, linetype="dashed")+
-  geom_smooth( data=arr_comb_1,aes(x =time, y = mean_both, colour=strata), linewidth=1)+
-  geom_ribbon(data=arr_comb_1, aes(ymin = l_ci_both, ymax = u_ci_both, x=time),fill= "#377EB8",alpha=0.1)+ 
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Absolute risk reduction (%)") +
-  scale_color_discrete(palette=c("#377EB8","#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  theme_bw()+
-  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
-  labs(color="Stratum")
+
+p_real <- plot_arr_one(arr_all)
+
 p_real
-ggsave("ARR plots with varying competing risks/Real competing risk ratios, combined.png")
+ggsave("ARR plots with varying competing risks/Real competing risk ratios, combined.jpg" , device=ragg::agg_jpeg, dpi=1600, height=4, width=9)
+
 
 ```
 
@@ -1398,21 +1464,310 @@ ggsave("ARR plots with varying competing risks/Real competing risk ratios, combi
 
 ```{r plot sep, fig.height=4, fig.width=12}
 #strata separately
-ggplot(data=arr_all)+
-  geom_smooth( aes(x =time, y = mean_both,color=strata), linewidth=0.5, linetype="dashed")+
-  geom_ribbon( aes(ymin = l_ci_both, ymax = u_ci_both, x=time,fill=strata),alpha=0.1)+ 
-  facet_wrap(facets="strata", ncol=4, nrow=2)+
-  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
-               labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
-  scale_y_continuous ("Absolute risk reduction (%)") +
-  scale_color_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  scale_fill_discrete(palette=c("#E41A1C",  "#4DAF4A" ,"#984EA3", "#FF7F00", "#FFFF33", "#A65628", "#F781BF", "#999999"))+
-  theme_bw()+
-  ggtitle(paste("Absolute risk reduction of recurrent stroke, accounting for competing risk of death"))+
-  labs(color="Stratum")
+p_real_strata <- plot_strata(arr_all)
+p_real_strata
 
-ggsave("ARR plots with varying competing risks/Real competing risk ratios, separate.png")
+ggsave("ARR plots with varying competing risks/Real competing risk ratios, separate.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=12)
+
 ```
+
+
+
+
+
+### ARR with no competing events
+
+
+
+```{r loop through strata for arr 0, results='asis'}
+
+#We want arr for each stratum. The lambdas are in a single vector, length of the number of strata time the number of reps.
+pl_2 <- list()
+pl_2_cis <- list()
+tx_2 <- list()
+tx_2_cis <- list()
+
+arr_2 <- list()
+rr_2 <- list()
+or_2<- list()
+
+rate_compete<- as.data.frame(rep(0,nrep))
+colnames(rate_compete)<- "V1"
+for(i in 1:length(strata_y)){
+  # Placebo arm
+pl_2[[i]] <- MakeCumulative2(arm="u",
+                       rate.main.t1 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                       rate.main.t2 = lambda_u_sim[(nrep*(i-1)+1):(i*nrep)],
+                       rate.compete.t1 = rate_compete,
+                       rate.compete.t2 = rate_compete,
+                       t1_times,
+                       t2_times)
+pl_2_cis[[i]]<- get_CIs(pl_2[[i]], c(t1_times, t2_times))
+
+# Treatment arm
+tx_2[[i]] <- MakeCumulative2 (arm = "rx",
+                        rate.main.t1 = lambda_t1_sim[(nrep*(i-1)+1):(i*nrep)],
+                        rate.main.t2 = lambda_t2_sim[(nrep*(i-1)+1):(i*nrep)],
+                        rate.compete.t1 = rate_compete,
+                        rate.compete.t2 = rate_compete,
+                        t1_times,
+                        t2_times)
+tx_2_cis[[i]]<- get_CIs(tx_2[[i]],c(t1_times, t2_times))
+## Calculate comparisons
+arr_2[[i]] = pl_2[[i]] - tx_2[[i]]
+rr_2[[i]] = tx_2[[i]]/pl_2[[i]]
+or_2[[i]] = (tx_2[[i]]/(1-tx_2[[i]])) / (pl_2[[i]]/(1-pl_2[[i]]))
+}
+
+
+```
+
+#### Plots of outcomes {.tabset}
+
+These plots show the cumulative incidence of a) recurrent stroke, b) death due to none-stroke cause and c) recurrent stroke, accounting for competing risk of death.
+
+##### Recurrent stroke outcome 
+
+```{r plots of outcomes 0, fig.width=12, fig.height=6, results='asis'}
+plots_rec_str<- list()
+arms_x1<- list()
+for(i in 1:length(strata_y)){
+  
+  arms_x1[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_main, l_ci = pl_2_cis[[i]]$l_ci_main, u_ci=pl_2_cis[[i]]$u_ci_main),
+                      tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_main, l_ci = tx_2_cis[[i]]$l_ci_main, u_ci=tx_2_cis[[i]]$u_ci_main))
+  
+  ## Create plots
+  setDT(arms_x1[[i]])
+  plots_rec_str[[i]] <- ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  #geom_point()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
+}
+
+(plots_rec_str[[1]]|plots_rec_str[[2]]|plots_rec_str[[3]]|plots_rec_str[[4]])/(plots_rec_str[[5]]|plots_rec_str[[6]]|plots_rec_str[[7]]|plots_rec_str[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke for each stratum")
+
+```
+
+##### Competing outcome (none-stroke death) 
+
+```{r competing outcome plots 0,fig.width=12, fig.height=6, results='asis'}
+plots_comp = list()
+for(i in 1:length(strata_y)){
+  
+  arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
+  ## set upper limit on upper ci of 1 so it plots properly
+  
+  arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
+  ## Create plots
+  plots_comp[[i]] <- ggplot(arms_x2, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+}
+
+(plots_comp[[1]]|plots_comp[[2]]|plots_comp[[3]]|plots_comp[[4]])/(plots_comp[[5]]|plots_comp[[6]]|plots_comp[[7]]|plots_comp[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of competing risk for each stratum")
+
+```
+
+##### Recurrent stroke, accounting for competing risk of none-stroke death 
+
+```{r both outcome plots 0,fig.width=12, fig.height=6,  results='asis'}
+
+plot_both= list()
+for(i in 1:length(strata_y)){
+  
+  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+  
+  
+  ## set upper limit on upper ci of 1 so it plots properly
+  
+  arms_x3<- arms_x3%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
+  ## Create plots
+  plot_both[[i]] <- ggplot(arms_x3, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+  geom_ribbon(aes(ymin = l_ci, ymax = u_ci_mod, colour=NULL, fill=arm), alpha=0.2) +
+  geom_line()+
+  scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6),
+                 labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) +
+  scale_y_continuous ("Cumulative incidence", limits=c(0,1)) +
+  theme_bw()+
+  theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8),panel.background = element_rect(fill = "white", colour = "white"),
+      plot.background = element_rect(fill = "white", colour = "white"))+
+  ggtitle(paste(strata_y[i]))+
+  guides(color="none")+
+  labs(fill="Arm")
+
+}
+
+(plot_both[[1]]|plot_both[[2]]|plot_both[[3]]|plot_both[[4]])/(plot_both[[5]]|plot_both[[6]]|plot_both[[7]]|plot_both[[8]])+plot_layout(guides="collect", axis_titles = "collect")+plot_annotation(title= "Cumulative incidence of recurrent stroke, accounting for competing risk of death")
+
+```
+
+#### Absolute risk reduction {.tabset}
+
+These plots and tables show the absolute risk reduction for each stratum and overall, accounting for competing risk of death.
+
+```{r format ARR 0, results='asis'}
+#create dataframes and tables of arr and event rates in each arm, for each stratum
+arr_cis<- list() 
+
+
+for(i in 1:length(strata_y)){
+  
+  arr_cis[[i]] <- as.data.frame(get_CIs(arr_2[[i]], all_times))
+  setDT(arr_cis[[i]])
+  arr_cis[[i]][, time:= all_times]
+  arr_cis_select<- arr_cis[[i]][time %in% times_for_tables][,c("time","mean_both", "l_ci_both", "u_ci_both") ]
+  arr_cis_select[, mean_both:= round(mean_both*100,1)][, u_ci_both:=round(u_ci_both*100,1)][, l_ci_both:=round(l_ci_both*100,1)]
+  
+  colnames(arr_cis_select) <- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
+  
+  arms_x3 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "pl", n1_cum_per = pl_2_cis[[i]]$mean_both, l_ci = pl_2_cis[[i]]$l_ci_both, u_ci=pl_2_cis[[i]]$u_ci_both),
+                 tibble(obs.times = c(t1_times, t2_times), arm = "tx", n1_cum_per = tx_2_cis[[i]]$mean_both, l_ci = tx_2_cis[[i]]$l_ci_both, u_ci=tx_2_cis[[i]]$u_ci_both))
+  
+  setDT(arms_x3)
+  arms3_select <- arms_x3[obs.times %in% times_for_tables]
+  abs_rates <- dcast(arms3_select, obs.times ~ arm, value.var="n1_cum_per")
+  abs_rates[,pl:= round(100*pl,1)][, tx:= round(100*tx,1)]
+  colnames(abs_rates) <- c("Time (days)", "Events in untreated (%)", "Events in treated (%)")
+  
+  arr_and_individ <- merge(abs_rates, arr_cis_select, by="Time (days)")
+  ft<- flextable(arr_and_individ)
+  ft<- width(ft,width=dim_pretty(ft)$widths)
+  
+  cat(paste0('##### ', strata_y[i], '\n\n'))
+  
+  flextable_to_rmd(ft)
+  
+  cat("\n\n")
+}
+```
+
+##### Overall
+
+```{r arr in one table 0, results='asis'}
+
+#calculate ARR for whole cohort
+#matrix of risk ratios at t1, one column per stratum, nrep rows for each day. Need to do this once for each day.
+arr_per_strata <- unlist(lapply(arr_2, function(x) x[,V3, drop=FALSE]))
+
+arr_flat<-matrix(arr_per_strata, ncol=length(strata_y))
+
+#matrix of ns in latch, one column per stratum
+strata_n_df<- as.data.frame(t(strata_y_vars$strata_y_n))
+ns <- as.matrix(strata_n_df %>% slice(rep(1, each = nrep*length(all_times))))
+#create a vector of totals
+n_tot<- rowSums(ns)
+
+arr_n <- rowSums(arr_flat*ns)
+arr_n_tot <- as.data.frame(arr_n/n_tot)
+
+setDT(arr_n_tot)
+arr_n_tot[, index:=rep(all_times, each=nrep)]
+
+#Group by index then work out quantiles. Use data.table
+arr_n_tot[,mean_both:= (mean(`arr_n/n_tot`,na.rm=T)*100), by=index][,l_ci_both:=(quantile(`arr_n/n_tot`, probs=0.025, na.rm=T)*100),by=index][, u_ci_both:=(quantile(`arr_n/n_tot`, probs=0.975,na.rm=T)*100), by=index]
+
+#select every nrep row
+arr_n_tot_new <- arr_n_tot[seq(1, nrow(arr_n_tot),nrep), ]
+
+#a note on the formatting of the risks outputs. For ease of calculating the confidence intervals (to keep compatible with the function get_CIs), the data frames include unnecessary columns. We select the relevant ones now.
+
+arr_rel_cols<- list()
+for(i in 1: length(strata_y)){
+setDT(arr_cis[[i]])
+arr_rel_cols[[i]]<-  arr_cis[[i]][,c("time", "mean_both", "l_ci_both", "u_ci_both")][, strata:=strata_y[i]][, mean_both:= 100*mean_both][, l_ci_both:= 100*l_ci_both] [,u_ci_both:= 100*u_ci_both]
+}
+
+arr_all <- do.call(rbind.data.frame, arr_rel_cols)
+
+arr_all<- arr_all[, strata:= factor(strata, labels=strata_y, ordered=T)]
+#we want to add in rows for the combined weighted total. First harmonise column names
+
+arr_comb_1 <- arr_n_tot_new[, c("index","mean_both","l_ci_both","u_ci_both")][,strata:="All"]
+setnames(arr_comb_1, "index", "time")
+
+arr_all_comb<- rbind(arr_all, arr_comb_1)
+
+### table at various time points
+arr_select <- arr_n_tot_new[index %in% times_for_tables][, `arr_n/n_tot`:=NULL]
+colnames(arr_select)<- c("Time (days)", "Absolute difference (%)", "Lower CI (%)", "Upper CI (%)")
+
+ft_comb<- flextable(round(arr_select,1))
+ft_comb<- width(ft_comb,width=dim_pretty(ft_comb)$widths)
+
+ft_comb
+```
+
+#### Plots {.tabset}
+
+
+##### Plot of ARR for each strata
+
+```{r plot overall 0, results='asis', fig.height=4, fig.width=9}
+
+#all on one plot
+p_no_comp <- plot_arr_one(arr_all)
+p_no_comp
+ggsave("ARR plots with varying competing risks/No competing risk, combined.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=9)
+
+```
+
+##### Plot of ARR for each stratum separately
+
+```{r plot sep 0, fig.height=4, fig.width=12}
+#strata separately
+p_no_comp_strata<- plot_strata(arr_all)
+p_no_comp_strata
+ggsave("ARR plots with varying competing risks/No competing risk, separate.jpg", device=ragg::agg_jpeg, dpi=1600, height=4, width=12)
+
+```
+
+
+
+### How reasonable is assumption TRIDENT drug might reduce all-cause death?
+
+LATCH recorded causes of death, which have been categorised as vascular and non-vascular.
+Defined as per Linxin Li, Lancet Neurol. 2021 Jun;20(6):437–447. doi: 10.1016/S1474-4422(21)00075-2:
+"We defined vascular death as death within 30 days following and due to recurrent symptomatic ICH, extracranial haemorrhage, ischaemic stroke, myocardial infarction, peripheral artery occlusion, mesenteric ischaemia, central retinal arterial occlusion, symptomatic deep vein thrombosis, symptomatic pulmonary embolism, sudden cardiac death (with symptoms suggestive of myocardial infarction or evidence of arrhythmia), symptomatic stroke of uncertain subtype, or revascularisation procedures."
+
+Among those who did not experience the primary outcome (recurrent stroke of any cause) the causes of death were as follows:
+
+```{r exploring cause of death}
+#read in cause of death data
+cause_of_death_latch <- read_csv("/Users/alicehosking/Documents/REA3 clinical fellow job/Playing with LATCH data/Latch playing/Outcome data files/dcn_death_cert_data_vw.csv")
+
+
+latch_for_trident_cod <- merge(latch_for_trident, cause_of_death_latch, by="LatchID", all.x=T, all.y=F)
+
+# want cause of death for people without outcome - this is the varable DeathCause, coded as per Nesh and Linxin Li
+latch_no_outcome<- latch_for_trident_cod[censor_all_str_t2==0]
+
+cod<- as.data.frame(table(latch_no_outcome$DeathCause))
+ft_cod <- flextable(cod)
+ft_cod <- width(ft_cod,width=dim_pretty(ft_cod)$widths)
+ft_cod
+```
+
 
 
 ## Appendix
@@ -1425,6 +1780,9 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 
 \n
 \n
+
+
+
 
 <!-- ```{r t1 pooled results,results="asis",fig.width=3,fig.height=2} -->
 <!-- ggplot(data=as.data.frame(rr_tot_t1))+ -->
@@ -1568,7 +1926,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!-- #geom_point()+ -->
 <!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
 <!--                labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
-<!-- scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) + -->
+<!-- scale_y_continuous ("Cumulative incidence", limits=c(c(0,1)) + -->
 <!-- theme_bw()+ -->
 <!-- theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
 <!-- ggtitle(paste(strata_y[i]))+ -->
@@ -1751,7 +2109,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!--         theme_bw()+ -->
 <!--         ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.9"))+ -->
 <!--         labs(color="Stratum") -->
-<!--     ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, separate.png") -->
+<!--     ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, separate.jpg") -->
 <!-- ``` -->
 
 <!-- ##### Plot of ARR for each strata -->
@@ -1770,7 +2128,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!--     ggtitle(paste("Absolute risk reduction of recurrent stroke,HR for competing risk of death = 0.9"))+ -->
 <!--     labs(color="Stratum") -->
 <!-- p_9 -->
-<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, combined.png") -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.9, combined.jpg") -->
 <!-- ``` -->
 
 
@@ -1898,7 +2256,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!-- #geom_point()+ -->
 <!-- scale_x_continuous("Time (years)", breaks = c(0,365.25,365.25*2, 365.25*3, 365.25*4, 365.25*5, 365.25*6), -->
 <!--                labels = c(0,1,2,3,4,5,6), limits=c(0,2300)) + -->
-<!-- scale_y_continuous ("Cumulative incidence", limits=c(0,0.5)) + -->
+<!-- scale_y_continuous ("Cumulative incidence", limits=c(c(0,1)) + -->
 <!-- theme_bw()+ -->
 <!-- theme(plot.title=element_text(size=8), axis.title = element_text(size=8), axis.text=element_text(size=8), legend.text = element_text(size=8), legend.title=element_text(size=8))+ -->
 <!-- ggtitle(paste(strata_y[i]))+ -->
@@ -2081,7 +2439,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!-- theme_bw()+ -->
 <!-- ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+ -->
 <!-- labs(color="Stratum") -->
-<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, separate.png") -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, separate.jpg") -->
 <!-- ``` -->
 
 <!-- ##### Plot of ARR for each strata -->
@@ -2100,7 +2458,7 @@ cat(paste("The estimated calibrated risk ratio is ", est_t1, " (95% confidence i
 <!--     ggtitle(paste("Absolute risk reduction of recurrent stroke, HR for competing risk of death = 0.8"))+ -->
 <!--     labs(color="Stratum") -->
 <!-- p_8 -->
-<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, combined.png") -->
+<!-- ggsave("ARR plots with varying competing risks/Competing risk ratio 0.8, combined.jpg") -->
 <!-- ``` -->
 
 <!-- #### Compare plots with different competing risks -->
