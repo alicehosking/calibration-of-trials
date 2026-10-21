@@ -47,11 +47,6 @@ set_flextable_defaults(
 #This function calculates the cumulative incidence accounting for competing risks.
 
 
-
-
-
-
-
 MakeCumulative2 <- function (arm, rate.main.t1, rate.main.t2, rate.compete.t1, rate.compete.t2, t1_times, t2_times){
 
 # 
@@ -517,7 +512,7 @@ setDT(hrs_t1)
 hrs_t2_over65 <-hrs_t2[3:4,] 
 hrs_t2<- rbind(hrs_t2,hrs_t2_over65 ,hrs_t2_over65)
 setDT(hrs_t2)
-
+hrs_t1
 ```
 
 
@@ -961,6 +956,7 @@ for(i in 1:length(strata_y)){
   
   cat("\n\n")
 }
+1
 ```
 
 ##### Overall
@@ -1385,6 +1381,7 @@ for(i in 1:length(strata_y)){
   
   cat("\n\n")
 }
+1
 ```
 
 ##### Overall
@@ -1660,6 +1657,7 @@ for(i in 1:length(strata_y)){
   
   cat("\n\n")
 }
+
 ```
 
 ##### Overall
