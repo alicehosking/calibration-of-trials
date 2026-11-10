@@ -144,8 +144,6 @@ overall_arr <- function(arr_by_stratum){
 }
 
 
-
-
 #plotting functions
 #this plots the cif for each stratum for a specified outcome
 plot_strata_rates <- function(x) {
@@ -330,11 +328,11 @@ $$S(T_1) = e^{-T_1(\lambda_{i1} + \lambda_{j1})}$$
 
 At time $T_1$, the proportion with event i is:
 
-$$CIF_{T_1,i} = \frac{\lambda_{i1}}{\lambda_{i1}+\lambda_{j1}}(1-S(T_1))$$
+$$CIF(T_1)_{i} = \frac{\lambda_{i1}}{\lambda_{i1}+\lambda_{j1}}(1-S(T_1))$$
 
 The cumulative incidence of event $i$ accounting for competing risks for times beyond $T_1$ is:
 
-$$CIF_{i} = CIF_{T_1,i} + CIF_i(t-T_1)\times S(T_1)$$
+$$CIF(t)_{i} = CIF(T_1)_{i} + CIF_i(t-T_1)\times S(T_1)$$
 
 We assume that:
 
