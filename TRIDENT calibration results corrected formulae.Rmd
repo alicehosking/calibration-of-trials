@@ -146,9 +146,9 @@ overall_arr <- function(arr_by_stratum){
 
 #plotting functions
 #this plots the cif for each stratum for a specified outcome
-plot_strata_rates <- function(x) {
+plot_strata_rates <- function(z) {
  
-    ggplot(arms_x1[[i]], aes(x = obs.times, y = n1_cum_per, colour = arm)) +
+    ggplot(z, aes(x = obs.times, y = n1_cum_per, colour = arm)) +
       geom_ribbon(aes(ymin = l_ci, ymax = u_ci, colour=NULL, fill=arm), alpha=0.2) +
       geom_line()+
       #geom_point()+
@@ -918,14 +918,15 @@ for(i in 1:length(strata_y)){
 ##### Competing risk outcome 
 
 ```{r competing outcome plots comp 1,fig.width=12, fig.height=6, results='hide'}
-plots_comp = list()
+plots_comp <- list()
+arms_x2<- list()
 for(i in 1:length(strata_y)){
   
-  arms_x2 <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
+  arms_x2[[i]] <- bind_rows(tibble(obs.times = c(t1_times, t2_times), arm = "Placebo", n1_cum_per = pl_2_cis[[i]]$mean_comp, l_ci = pl_2_cis[[i]]$l_ci_comp, u_ci=pl_2_cis[[i]]$u_ci_comp),
                  tibble(obs.times = c(t1_times, t2_times), arm = "Treatment", n1_cum_per = tx_2_cis[[i]]$mean_comp, l_ci = tx_2_cis[[i]]$l_ci_comp, u_ci=tx_2_cis[[i]]$u_ci_comp))
   ## set upper limit on upper ci of 1 so it plots properly
   
-  arms_x2<- arms_x2%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
+  arms_x2[[i]]<- arms_x2[[i]]%>% mutate(u_ci_mod = ifelse(u_ci>1,1,u_ci))
   ## Create plots
   plots_comp[[i]] <- plot_strata_rates(arms_x2[[i]])
 }
