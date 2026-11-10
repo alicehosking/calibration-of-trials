@@ -253,7 +253,7 @@ $$\lambda_u=\frac{m_s}{\text{Total follow up time for stratum}}$$.
 
 As we are assuming an exponential distribution, we can calculate the standard error directly:
 
-$$ ln(SE)= \frac{1}{\sqrt{m_s}}$$
+$$ SE(ln(\lambda_u))= \frac{1}{\sqrt{m_s}}$$
 
 We then simulate a normally distributed sample for the event rates.
 
@@ -355,11 +355,17 @@ latch_for_trident<- latch_for_tridentx[,c("LatchID", "survival_time","censor_sta
 #for this analysis, we care about date of first stroke (which is ischaemic stroke) and date of recurrent ICH
 latch_for_trident[, first_rec_ich:= as.Date(first_rec_ich, origin = "1899-12-30")][, first_stroke:= as.Date(first_stroke, origin = "1899-12-30")]
 
+#as going from day 30, reset origin to i_date+30
+latch_for_trident[, origin_date:= i_date+days(30)]
+
 #time to first event
-latch_for_trident[, time_to_ich:= difftime(first_rec_ich,i_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,i_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,i_date,  units="days")]
+latch_for_trident[, time_to_ich:= difftime(first_rec_ich,origin_date,  units="days")][,time_to_isch_str:=difftime(first_stroke ,origin_date,  units="days")][, time_to_all_stroke:= pmin(time_to_ich, time_to_isch_str, na.rm=T)][,date_of_death_trid:= as.Date(date_of_death.y, origin = "1899-12-30")] [, time_to_death:= difftime(date_of_death_trid,origin_date,  units="days")]
+
+#remove people with negative first event dates (4 people)
+latch_for_trident<- latch_for_trident[time_to_all_stroke>-1|is.na(time_to_all_stroke==T)]
 
 # if no first event, time to end of death/ end study
-latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", i_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
+latch_for_trident[, surv_time_all_stroke:=fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==T, difftime("2022-12-31", origin_date, units="days"), fifelse(is.na(time_to_all_stroke)==T&is.na(time_to_death)==F, time_to_death, time_to_all_stroke))]
 
 #censor status and survival time at 1.5 years, 4.5 years and all time
 latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_stroke)==T,0,1)][,censor_all_str_t1:= fifelse(time_to_all_stroke<548,1,0)][ ,censor_all_str_t1:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t1)][, survival_stroke_t1:= fifelse(censor_all_str_t1==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][, survival_stroke_t1:= pmin(548,survival_stroke_t1)][,censor_all_str_t2:= fifelse(time_to_all_stroke<6*365.25,1,0)][ ,censor_all_str_t2:=fifelse(is.na(time_to_all_stroke)==T,0,censor_all_str_t2)][, survival_stroke_t2:= fifelse(censor_all_str_t2==1, time_to_all_stroke, pmin(surv_time_all_stroke, time_to_death, na.rm = T))][,survival_stroke_t2:=pmin(round(6*365.25,0),survival_stroke_t2)]
@@ -373,9 +379,11 @@ latch_for_trident[, censor_status_all_str_all_time:= fifelse(is.na(time_to_all_s
 #censor if had stroke/didn't die
 latch_for_trident[, comp_event_n:= fifelse(is.na(time_to_all_stroke)==T & is.na(date_of_death.y)==F,1,0) ]
 #time to event is: time to stroke (for people who had stroke); time to death (no stroke and died from other cause);  end of follow up. Coded using fcase.
-latch_for_trident[, time_to_comp_event := fcase(is.na(time_to_all_stroke)==F, time_to_all_stroke, is.na(date_of_death.y)==F& is.na(time_to_all_stroke)==T,difftime(date_of_death_trid, i_date, units="days"),default=difftime("2022-12-31", i_date, units="days"))]
+latch_for_trident[, time_to_comp_event := fcase(is.na(time_to_all_stroke)==F, time_to_all_stroke, is.na(date_of_death.y)==F& is.na(time_to_all_stroke)==T,difftime(date_of_death_trid, origin_date, units="days"),default=difftime("2022-12-31", origin_date, units="days"))]
 #provide interim count at t1
-latch_for_trident[, comp_event_n_t1 := fifelse(time_to_comp_event < 548, 1,0)][, time_to_comp_event_t1:= pmin(548,time_to_comp_event)][, comp_event_n_t2 := fifelse(time_to_comp_event < 6*365.25, 1,0)][,time_to_comp_event_t2 := pmin(round(6*365.25),time_to_comp_event)]
+latch_for_trident[, comp_event_n_t1 := fifelse(comp_event_n == 1 & time_to_comp_event < 548, 1, 0)][, time_to_comp_event_t1:=fifelse(time_to_comp_event>548, 548, as.numeric(time_to_comp_event))]
+latch_for_trident[, comp_event_n_t2 := fifelse(comp_event_n == 1 & time_to_comp_event < 6*365.25, 1, 0)][, time_to_comp_event_t2:=time_to_comp_event]
+
 
 strata<- list(
 latch_under_65_m<- latch_for_trident[age_index<65&Gender_t=="Male"],
@@ -395,7 +403,7 @@ strata_comp_fu_t1<- c()
 strata_comp_fu_t2 <- c()
 
 for(i in 1:length(strata)){
-strata_n[i] <-length(strata[[i]]$i_date) 
+strata_n[i] <-length(strata[[i]]$origin_date) 
 strata_n_events_t1[i]<- sum(strata[[i]]$censor_all_str_t1)
 strata_n_events_t2[i]<- sum(strata[[i]]$censor_all_str_t2)
 strata_fu_t1[i] <- sum(strata[[i]]$survival_stroke_t1)
@@ -434,7 +442,7 @@ strata_y_comp_fu_t1<- c()
 strata_y_comp_fu_t2 <- c()
 
 for(i in 1:length(strata_y)){
-strata_y_n[i] <-length(strata_y[[i]]$i_date) 
+strata_y_n[i] <-length(strata_y[[i]]$origin_date) 
 strata_y_n_events_t1[i]<- sum(strata_y[[i]]$censor_all_str_t1)
 strata_y_n_events_t2[i]<- sum(strata_y[[i]]$censor_all_str_t2)
 strata_y_fu_t1[i] <- sum(strata_y[[i]]$survival_stroke_t1)
@@ -477,7 +485,7 @@ cat("\n\n")
 nrep<-1000
 
 #event rate at t1 and t2
-rate_est <- strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2*365.35*100
+rate_est <- strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2*365.25*100
 log_rate_est <- log(strata_y_vars$strata_y_n_events_t2/ strata_y_vars$strata_y_fu_t2)
 
 # Calculate SE of the log-rate for untreated
@@ -493,7 +501,7 @@ log_lambda_u<- untreated_rates[,rnorm(nrep, mean=log_rate_est, sd=log_rate_se), 
 log_lambda_u$I <- factor(log_lambda_u$I, levels=seq(1, length(strata_y)), labels=strata_y)
 
 #calculate confidence intervals for visualisation
-untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.35*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.35*100]
+untreated_rates[, lower_ci:= exp(log_rate_est-1.96*log_rate_se)*365.25*100][, upper_ci:= exp(log_rate_est+1.96*log_rate_se)*365.25*100]
 saveRDS(untreated_rates, "RDS files/LATCH untreated rates, strata above and below 65 years.rds")
 
 #round all the numbers
@@ -504,7 +512,7 @@ setnames(untreated_rates_round, c("V1", "rate_cis"), c("N in strata","Rate of re
 
 ## competing risk rates
 #event rate at t2 for each stratum, single value
-rate_comp_est <- strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2*365.35*100
+rate_comp_est <- strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2*365.25*100
 log_rate_comp_est <- log(strata_y_vars$strata_y_comp_n_events_t2/ strata_y_vars$strata_y_comp_fu_t2)
 
 # Calculate SE of the log-rate for untreated, save
@@ -520,7 +528,7 @@ strata <-c("Male <65 years", "Female <65 years", "Male 65 years and over", "Fema
 log_lambda_u_comp$I <- factor(log_lambda_u_comp$I, levels=seq(1, length(strata_y)), labels=strata_y)
 
 #calculate confidence intervals for visualisation
-untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.35*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.35*100]
+untreated_rates_comp[, lower_ci:= exp(log_rate_comp_est-1.96*log_rate_comp_se)*365.25*100][, upper_ci:= exp(log_rate_comp_est+1.96*log_rate_comp_se)*365.25*100]
 saveRDS(untreated_rates_comp, "RDS files/LATCH untreated rates_comp, strata above and below 65 years.rds")
 
 #round all the numbers
@@ -612,8 +620,11 @@ ft_hr_t1_a
 #obtain log of hrs and CI at t1 and t2. Assume log normally distributed, and find log standard error
 setDT(hrs_t1)
 setDT(hrs_t2)
+
+
 hrs_t1[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
 hrs_t2[, log_hr:= log(HR)][, log_se:= (log(u_ci)-log(l_ci))/3.92][, se:= exp(log_se)]
+
 
 #simulate log hr for nrep samples.
 #create simulated hr for all strata
@@ -821,26 +832,7 @@ ggsave("Plots/whole trial risk ratio t2.jpg", device=ragg::agg_jpeg, dpi=1600, h
 
 ```
 
-### Number needed to treat
-  
-```{r absolute risks, comment=NA}
-#without simulation
-event_rate<- sum(strata_vars$strata_n_events_t2)/sum(strata_vars$strata_fu_t2)*365.25
-arr <- event_rate- event_rate*rr_tot_t2
-nnt <- 1/arr
-cis_nnt<- quantile(nnt, probs = c(0.025, 0.975))
-cis_arr<- round(quantile(arr, probs = c(0.025, 0.975)),4)
 
-#with simulation
-# event_rate_sim<- lambda_u_sim*365.25
-# arr_sim <- (event_rate_sim- event_rate_sim*rr_tot_t2)
-# nnt_sim<- 1/arr_sim
-# cis_nnt_sim<- quantile(nnt_sim, probs = c(0.025, 0.975))
-# cis_arr_sim<- round(quantile(arr_sim, probs = c(0.025, 0.975)),4)
-
-cat(paste(" The number needed to treat is ", round(mean(nnt),2)," (95% CI ", round(cis_nnt[1],2), " - ", round(cis_nnt[2],2),").", sep=""))
-
-```
 
 ### Competing event analysis: assuming no difference in non-stroke death between treatment and placebo arm
 
@@ -989,7 +981,6 @@ for(i in 1:length(strata_y)){
   
   cat("\n\n")
 }
-
 ```
 
 ##### Overall
