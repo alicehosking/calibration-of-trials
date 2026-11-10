@@ -287,7 +287,7 @@ We simulate 1000 samples for each hazard ratio and event rate, to generate 1000 
 
 The final step is to pool the risk ratio for each stratum. We take a weighted mean, where the risk ratio for each stratum is weighted by the number of people in each stratum. 
 
-$$RR_{overall}= \sum_{s} RR_s n_s $$
+$$RR_{overall}= \frac{\sum_{s} RR_s n_s}{\sum_{s}n_s} $$
   
   We do this for all samples, then generate a mean and confidence intervals for the calibrated relative risk.
 
